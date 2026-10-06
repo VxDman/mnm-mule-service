@@ -14,7 +14,9 @@ import {
   X,
   Sparkles,
   Lock,
-  UserCheck
+  UserCheck,
+  Clock,
+  Radio
 } from 'lucide-react';
 import { User, AppSettings } from '@/types';
 
@@ -23,10 +25,11 @@ export default function AdminPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [guildUsers, setGuildUsers] = useState<User[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
-    guild_name: '',
-    guild_tag: '',
+    guild_name: 'The Pillar Men',
+    hours_of_operation: 'Daily 6:00 PM - 2:00 AM EST (or whenever runners are on duty)',
     default_payout_percent: 75,
-    motd: ''
+    motd: '',
+    service_status_mode: 'auto'
   });
   const [loading, setLoading] = useState(true);
 
@@ -190,10 +193,10 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto">
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
             <Shield className="w-6 h-6 text-purple-400" />
-            Guild Administration & Credentials
+            The Pillar Men — Administration & Credentials
           </h1>
           <p className="text-xs text-zinc-400 mt-1">
-            Manage guildmate accounts, credentials, runner character names, and global service payout policies.
+            Manage guildmate credentials, operating hours, runner duty status, and payout policies.
           </p>
         </div>
       </div>
@@ -205,10 +208,10 @@ export default function AdminPage() {
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Users className="w-5 h-5 text-amber-400" />
-                Guild Roster & Runner Credentials
+                Guild Roster & Credentials
               </h2>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Provide credentials to your guildmates so they can log into the queue and run orders.
+                Issue credentials to guild members so they can log in, declare online duty, and run orders.
               </p>
             </div>
 
@@ -229,9 +232,9 @@ export default function AdminPage() {
               <thead className="bg-zinc-950/80 border-b border-zinc-800 text-zinc-400 uppercase text-[10px] tracking-wider">
                 <tr>
                   <th className="py-3 px-4 font-semibold">Login Username</th>
-                  <th className="py-3 px-4 font-semibold">Runner Character Name</th>
-                  <th className="py-3 px-4 font-semibold">Guild Role</th>
-                  <th className="py-3 px-4 font-semibold">Date Added</th>
+                  <th className="py-3 px-4 font-semibold">Runner In-Game Name</th>
+                  <th className="py-3 px-4 font-semibold">Duty Status</th>
+                  <th className="py-3 px-4 font-semibold">Role</th>
                   <th className="py-3 px-4 font-semibold text-right">Credentials & Actions</th>
                 </tr>
               </thead>
@@ -251,17 +254,26 @@ export default function AdminPage() {
                     </td>
                     <td className="py-3 px-4">
                       <span
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          u.is_online
+                            ? 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-300'
+                            : 'bg-zinc-900 border border-zinc-800 text-zinc-500'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${u.is_online ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}`} />
+                        <span>{u.is_online ? 'ON DUTY' : 'OFFLINE'}</span>
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span
                         className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
                           u.role === 'admin'
                             ? 'bg-purple-950/80 border border-purple-600/50 text-purple-300'
                             : 'bg-cyan-950/80 border border-cyan-600/50 text-cyan-300'
                         }`}
                       >
-                        {u.role === 'admin' ? 'Guild Leader / Admin' : 'Runner'}
+                        {u.role === 'admin' ? 'Guild Leader' : 'Runner'}
                       </span>
-                    </td>
-                    <td className="py-3 px-4 text-zinc-500 text-[11px]">
-                      {new Date(u.created_at).toLocaleDateString()}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -295,15 +307,15 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Section 2: Global Guild & Payout Settings */}
+        {/* Section 2: Global Service Settings & Hours of Operation */}
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-6">
           <div className="border-b border-zinc-800 pb-4">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <SettingsIcon className="w-5 h-5 text-amber-400" />
-              Service Configuration & Payout Rates
+              Hours of Operation & Service Configuration
             </h2>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Control the default profit split, guild branding, and banner announcements.
+              Set operating hours, automatic or manual service status, and base payout rates.
             </p>
           </div>
 
@@ -324,29 +336,49 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Guild Service Name
+                  Guild Name
                 </label>
                 <input
                   type="text"
                   required
                   value={settings.guild_name}
                   onChange={(e) => setSettings({ ...settings, guild_name: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Guild Tag
+                  Service Status Mode
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={settings.guild_tag}
-                  onChange={(e) => setSettings({ ...settings, guild_tag: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
-                />
+                <select
+                  value={settings.service_status_mode || 'auto'}
+                  onChange={(e) => setSettings({ ...settings, service_status_mode: e.target.value })}
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  <option value="auto">Automatic (Open when runners are on duty)</option>
+                  <option value="open">Forced Open (Always accept runs)</option>
+                  <option value="closed">Forced Closed (Maintenance / Off)</option>
+                </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                Hours of Operation
+              </label>
+              <input
+                type="text"
+                required
+                value={settings.hours_of_operation}
+                onChange={(e) => setSettings({ ...settings, hours_of_operation: e.target.value })}
+                placeholder="e.g. Daily 6:00 PM - 2:00 AM EST (or whenever runners are on duty)"
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+              <span className="text-[11px] text-zinc-500 mt-1 block">
+                Displayed to customers on the landing page and navigation header.
+              </span>
             </div>
 
             <div>
@@ -369,7 +401,7 @@ export default function AdminPage() {
                 </span>
               </div>
               <p className="text-[11px] text-zinc-500 mt-1">
-                For example, at 75% payout, a 100gp item gives 75gp to the customer and 25gp to the runner upon vendor sell.
+                Note: Individual preferred bounties (e.g. Bone Chips, Silk, Venom) can have custom bonus rates configured in Prices & Bounties.
               </p>
             </div>
 
@@ -427,12 +459,11 @@ export default function AdminPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. eldor"
+                  placeholder="e.g. kars"
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
-                <span className="text-[10px] text-zinc-500 mt-0.5 block">Used to sign in</span>
               </div>
 
               <div>
@@ -442,12 +473,11 @@ export default function AdminPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Eldor Swiftfeet"
+                  placeholder="e.g. Kars the Swift"
                   value={newDisplayName}
                   onChange={(e) => setNewDisplayName(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
-                <span className="text-[10px] text-zinc-500 mt-0.5 block">Shown to customers on live order tracker</span>
               </div>
 
               <div>
@@ -471,7 +501,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewRole(e.target.value as 'runner' | 'admin')}
                   className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
-                  <option value="runner">Runner (Orders Queue & Quotes)</option>
+                  <option value="runner">Runner (Dispatch & Quotes)</option>
                   <option value="admin">Admin (Full Guild Controls)</option>
                 </select>
               </div>

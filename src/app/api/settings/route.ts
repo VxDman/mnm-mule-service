@@ -22,8 +22,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     if (body.guild_name !== undefined) updateSetting('guild_name', String(body.guild_name));
-    if (body.guild_tag !== undefined) updateSetting('guild_tag', String(body.guild_tag));
+    if (body.hours_of_operation !== undefined) updateSetting('hours_of_operation', String(body.hours_of_operation));
     if (body.default_payout_percent !== undefined) updateSetting('default_payout_percent', String(body.default_payout_percent));
+    if (body.service_status_mode !== undefined) updateSetting('service_status_mode', String(body.service_status_mode));
     if (body.motd !== undefined) updateSetting('motd', String(body.motd));
 
     const updated = getSettings();

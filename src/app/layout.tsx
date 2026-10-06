@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "M&M Mule & Courier Service | Camp Trade Dispatch",
-  description: "Monsters and Memories camp trade service. Instant loot buyouts right at your camp coordinates.",
+  title: "The Pillar Men | Monsters & Memories Camp Mule & Courier Service",
+  description: "Monsters and Memories camp trade service. Stay at your camp, our couriers come to you and buy your loot on the spot.",
 };
 
 export default function RootLayout({
@@ -38,7 +38,7 @@ export default function RootLayout({
         </div>
         <footer className="border-t border-zinc-900 bg-zinc-950/80 py-6 text-center text-xs text-zinc-500">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span>© 2026 Monsters & Memories Guild Mule Service • Fast Camp Couriers</span>
+            <span>© 2026 The Pillar Men • Monsters & Memories Camp Courier Service</span>
             <span className="text-[11px] text-zinc-600">Platinum (pp) • Gold (gp) • Silver (sp) • Copper (cp)</span>
           </div>
         </footer>

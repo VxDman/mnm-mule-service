@@ -23,21 +23,23 @@ import {
   Check,
   X,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Radio,
+  Star,
+  Users
 } from 'lucide-react';
 import { CoinDisplay } from '@/components/CoinDisplay';
 import { CoinInput } from '@/components/CoinInput';
 import { Order, OrderItem, User as UserType } from '@/types';
 import { calculatePayout } from '@/lib/currency';
 
-// Play sound chime with Web Audio API (zero external assets needed)
 function playOrderChime() {
   try {
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
 
-    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6 arpeggio
+    const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -57,6 +59,10 @@ export default function RunnerDashboard() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [onlineRunners, setOnlineRunners] = useState<Array<{ id: string; display_name: string }>>([]);
+  const [isServiceOpen, setIsServiceOpen] = useState(false);
+  const [hoursOfOperation, setHoursOfOperation] = useState('');
+  const [isDutyLoading, setIsDutyLoading] = useState(false);
   const [stats, setStats] = useState<{
     totalCompleted: number;
     activeOrders: number;
@@ -69,7 +75,13 @@ export default function RunnerDashboard() {
 
   // Modals
   const [selectedOrderForQuote, setSelectedOrderForQuote] = useState<Order | null>(null);
-  const [quoteInputs, setQuoteInputs] = useState<Record<string, { vendorCopper: number; saveToCatalog: boolean; category: string }>>({});
+  const [quoteInputs, setQuoteInputs] = useState<Record<string, {
+    vendorCopper: number;
+    saveToCatalog: boolean;
+    category: string;
+    isPreferred: boolean;
+    preferredPercent: number;
+  }>>({});
 
   const [selectedOrderForAccept, setSelectedOrderForAccept] = useState<Order | null>(null);
   const [etaInput, setEtaInput] = useState('5 mins');
@@ -90,7 +102,14 @@ export default function RunnerDashboard() {
       }
       setCurrentUser(authData.user);
 
-      // 2. Fetch orders
+      // 2. Fetch duty status & settings
+      const dutyRes = await fetch('/api/runner/duty');
+      const dutyData = await dutyRes.json();
+      setIsServiceOpen(dutyData.is_service_open);
+      setHoursOfOperation(dutyData.hours_of_operation);
+      setOnlineRunners(dutyData.online_runners || []);
+
+      // 3. Fetch orders
       const ordersRes = await fetch('/api/orders?status=all');
       const ordersData = await ordersRes.json();
       if (ordersData.orders) {
@@ -99,7 +118,6 @@ export default function RunnerDashboard() {
           ['pending_quote', 'quoted', 'accepted', 'arrived'].includes(o.status)
         ).length;
 
-        // Trigger chime if active order count increased
         if (isPolling && activeCount > prevOrderCountRef.current && soundEnabled) {
           playOrderChime();
         }
@@ -108,7 +126,7 @@ export default function RunnerDashboard() {
         setOrders(fetchedOrders);
       }
 
-      // 3. Fetch stats
+      // 4. Fetch stats
       const statsRes = await fetch('/api/stats');
       const statsData = await statsRes.json();
       if (statsData.stats) {
@@ -131,15 +149,43 @@ export default function RunnerDashboard() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Open Quote Modal & prefill inputs
+  const handleToggleDuty = async () => {
+    if (!currentUser || isDutyLoading) return;
+    setIsDutyLoading(true);
+
+    const nextDuty = !currentUser.is_online;
+    try {
+      const res = await fetch('/api/runner/duty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_online: nextDuty })
+      });
+      if (res.ok) {
+        setCurrentUser({ ...currentUser, is_online: nextDuty ? 1 : 0 });
+        fetchData(true);
+      }
+    } finally {
+      setIsDutyLoading(false);
+    }
+  };
+
   const handleOpenQuoteModal = (order: Order) => {
     setSelectedOrderForQuote(order);
-    const initialQuotes: Record<string, { vendorCopper: number; saveToCatalog: boolean; category: string }> = {};
+    const initialQuotes: Record<string, {
+      vendorCopper: number;
+      saveToCatalog: boolean;
+      category: string;
+      isPreferred: boolean;
+      preferredPercent: number;
+    }> = {};
+
     order.items?.forEach((it) => {
       initialQuotes[it.id] = {
         vendorCopper: it.vendor_unit_copper || 0,
         saveToCatalog: true,
-        category: 'Loot'
+        category: 'Loot',
+        isPreferred: it.is_preferred === 1,
+        preferredPercent: 90
       };
     });
     setQuoteInputs(initialQuotes);
@@ -152,7 +198,9 @@ export default function RunnerDashboard() {
       order_item_id: oiId,
       vendor_unit_copper: data.vendorCopper,
       save_to_catalog: data.saveToCatalog,
-      category: data.category
+      category: data.category,
+      is_preferred: data.isPreferred,
+      preferred_payout_percent: data.isPreferred ? data.preferredPercent : undefined
     }));
 
     try {
@@ -200,7 +248,6 @@ export default function RunnerDashboard() {
     } catch {}
   };
 
-  // Filtered orders list
   const filteredOrders = orders.filter((o) => {
     if (filterTab === 'active') {
       return ['pending_quote', 'quoted', 'accepted', 'arrived'].includes(o.status);
@@ -217,7 +264,7 @@ export default function RunnerDashboard() {
     if (filterTab === 'completed') {
       return o.status === 'completed';
     }
-    return true; // 'all'
+    return true;
   });
 
   if (loading) {
@@ -225,53 +272,100 @@ export default function RunnerDashboard() {
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
         <div className="text-center space-y-3">
           <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
-          <p className="text-sm text-zinc-400">Loading Runner Dashboard...</p>
+          <p className="text-sm text-zinc-400">Loading Dispatch Board...</p>
         </div>
       </div>
     );
   }
+
+  const isOnDuty = !!currentUser?.is_online;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 pb-20">
       {/* Top Banner / KPIs */}
       <div className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur-md px-4 sm:px-6 lg:px-8 py-6">
         <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-white tracking-tight">Runner Dispatch Board</h1>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl font-black text-white tracking-tight">The Pillar Men Dispatch Board</h1>
                 <span className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-600/50 text-amber-400 text-xs font-mono font-bold">
                   LIVE
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-1">
-                Active runner: <span className="text-amber-300 font-semibold">{currentUser?.display_name}</span> • Guild order incoming queue & dispatch
+                Runner: <span className="text-amber-300 font-semibold">{currentUser?.display_name}</span> • Operating Hours: <span className="text-zinc-300">{hoursOfOperation}</span>
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Duty Toggle Button */}
+              <button
+                type="button"
+                onClick={handleToggleDuty}
+                disabled={isDutyLoading}
+                className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 shadow-lg ${
+                  isOnDuty
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-zinc-950 border-emerald-400 animate-pulse'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-zinc-700'
+                }`}
+              >
+                <Radio className="w-4 h-4" />
+                <span>{isOnDuty ? 'YOU ARE ON DUTY (SERVICE OPEN)' : 'GO ON DUTY (OPEN SERVICE)'}</span>
+              </button>
+
               <button
                 onClick={() => {
                   setSoundEnabled(!soundEnabled);
                   if (!soundEnabled) playOrderChime();
                 }}
-                className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                className={`px-3 py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-colors ${
                   soundEnabled
                     ? 'bg-emerald-950/40 border-emerald-600/40 text-emerald-300'
                     : 'bg-zinc-900 border-zinc-800 text-zinc-500'
                 }`}
               >
                 {soundEnabled ? <Bell className="w-3.5 h-3.5 text-emerald-400" /> : <BellOff className="w-3.5 h-3.5" />}
-                <span>{soundEnabled ? 'Chime Active' : 'Chime Muted'}</span>
+                <span>{soundEnabled ? 'Chime ON' : 'Muted'}</span>
               </button>
 
               <button
                 onClick={() => fetchData(true)}
                 title="Refresh Queue"
-                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
+            </div>
+          </div>
+
+          {/* Active Online Runners Bar */}
+          <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-zinc-400">
+              <Users className="w-4 h-4 text-cyan-400" />
+              <span>Couriers Currently On Duty:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {onlineRunners.length > 0 ? (
+                  onlineRunners.map((r) => (
+                    <span
+                      key={r.id}
+                      className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold border ${
+                        r.id === currentUser?.id
+                          ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
+                          : 'bg-zinc-900 border-zinc-700 text-cyan-300'
+                      }`}
+                    >
+                      {r.display_name} {r.id === currentUser?.id && '(You)'}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-zinc-500 italic">No runners on duty (Service is currently closed to incoming live alerts)</span>
+                )}
+              </div>
+            </div>
+
+            <div className="text-[11px] text-zinc-500">
+              Service Status: <strong className={isServiceOpen ? 'text-emerald-400' : 'text-zinc-400'}>{isServiceOpen ? '🟢 OPEN' : '🔴 CLOSED'}</strong>
             </div>
           </div>
 
@@ -467,8 +561,8 @@ export default function RunnerDashboard() {
                       </div>
 
                       <div className="flex items-start justify-between">
-                        <span className="text-zinc-400 shrink-0">Camp / Coords:</span>
-                        <span className="font-mono text-zinc-300 text-right ml-2 text-[11px] truncate max-w-[180px]" title={order.camp_location}>
+                        <span className="text-zinc-400 shrink-0">Camp Landmarks:</span>
+                        <span className="text-zinc-300 text-right ml-2 text-[11px] truncate max-w-[180px]" title={order.camp_location}>
                           {order.camp_location}
                         </span>
                       </div>
@@ -497,8 +591,9 @@ export default function RunnerDashboard() {
                       <div className="max-h-24 overflow-y-auto space-y-1 pr-1 text-[11px] text-zinc-400">
                         {order.items?.map((it) => (
                           <div key={it.id} className="flex items-center justify-between">
-                            <span className="truncate max-w-[160px] text-zinc-300">
-                              {it.quantity}x {it.item_name}
+                            <span className="truncate max-w-[160px] text-zinc-300 flex items-center gap-1">
+                              {it.is_preferred === 1 && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />}
+                              <span>{it.quantity}x {it.item_name}</span>
                             </span>
                             {it.is_priced && it.payout_unit_copper > 0 ? (
                               <CoinDisplay copper={it.payout_unit_copper * it.quantity} size="sm" />
@@ -535,7 +630,6 @@ export default function RunnerDashboard() {
 
                   {/* Action Buttons */}
                   <div className="mt-5 pt-3 border-t border-zinc-800 space-y-2">
-                    {/* Status: Needs Quote */}
                     {order.status === 'pending_quote' && (
                       <button
                         onClick={() => handleOpenQuoteModal(order)}
@@ -546,7 +640,6 @@ export default function RunnerDashboard() {
                       </button>
                     )}
 
-                    {/* Status: Quoted -> Available to Accept */}
                     {order.status === 'quoted' && (
                       <button
                         onClick={() => {
@@ -560,7 +653,6 @@ export default function RunnerDashboard() {
                       </button>
                     )}
 
-                    {/* Status: Accepted -> In Transit */}
                     {order.status === 'accepted' && (
                       <div className="space-y-1.5">
                         <button
@@ -579,7 +671,6 @@ export default function RunnerDashboard() {
                       </div>
                     )}
 
-                    {/* Status: Arrived -> Waiting for trade completion */}
                     {order.status === 'arrived' && (
                       <button
                         onClick={() => handleUpdateStatus(order.id, 'completed')}
@@ -590,7 +681,6 @@ export default function RunnerDashboard() {
                       </button>
                     )}
 
-                    {/* Re-Quote / Details link */}
                     <div className="flex items-center justify-between text-[11px] pt-1">
                       <button
                         onClick={() => handleOpenQuoteModal(order)}
@@ -627,7 +717,7 @@ export default function RunnerDashboard() {
                   Evaluate & Quote Items — Order {selectedOrderForQuote.id}
                 </h3>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Set town vendor sell price for items. Prices will auto-save to the permanent catalog for next time!
+                  Set town vendor sell price for items. Prices will auto-save to the registry for next time!
                 </p>
               </div>
               <button
@@ -641,7 +731,12 @@ export default function RunnerDashboard() {
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
               {selectedOrderForQuote.items?.map((it) => {
                 const currentVendor = quoteInputs[it.id]?.vendorCopper || 0;
-                const calculatedPayoutUnit = calculatePayout(currentVendor, selectedOrderForQuote.payout_percent);
+                const isBounty = quoteInputs[it.id]?.isPreferred || false;
+                const rate = isBounty ? (quoteInputs[it.id]?.preferredPercent || 90) : selectedOrderForQuote.payout_percent;
+                let calculatedPayoutUnit = calculatePayout(currentVendor, rate);
+                if (it.item_name.toLowerCase() === 'bone chips' && calculatedPayoutUnit === 0 && currentVendor > 0) {
+                  calculatedPayoutUnit = 1;
+                }
 
                 return (
                   <div
@@ -650,8 +745,9 @@ export default function RunnerDashboard() {
                   >
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                       <div>
-                        <div className="text-sm font-bold text-white">
-                          {it.quantity}x <span className="text-amber-300">{it.item_name}</span>
+                        <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                          {isBounty && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />}
+                          <span>{it.quantity}x <span className="text-amber-300">{it.item_name}</span></span>
                         </div>
                         <div className="text-[11px] text-zinc-500">
                           {it.is_priced ? 'Previously priced item' : '⭐ Uncatalogued item submitted by customer'}
@@ -659,12 +755,11 @@ export default function RunnerDashboard() {
                       </div>
 
                       <div className="text-right">
-                        <div className="text-[10px] text-zinc-400">Customer Payout ({selectedOrderForQuote.payout_percent}%):</div>
+                        <div className="text-[10px] text-zinc-400">Customer Payout ({rate}%):</div>
                         <CoinDisplay copper={calculatedPayoutUnit * it.quantity} size="sm" showZero />
                       </div>
                     </div>
 
-                    {/* Coin Input for Vendor Price */}
                     <div>
                       <CoinInput
                         label="Town Vendor Sell Price (per unit):"
@@ -681,9 +776,8 @@ export default function RunnerDashboard() {
                       />
                     </div>
 
-                    {/* Auto-save to catalog toggle */}
-                    <div className="flex items-center gap-2 pt-1">
-                      <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-900 text-xs">
+                      <label className="flex items-center gap-2 text-zinc-300 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={quoteInputs[it.id]?.saveToCatalog ?? true}
@@ -698,7 +792,25 @@ export default function RunnerDashboard() {
                           }}
                           className="rounded bg-zinc-900 border-zinc-700 text-amber-500 focus:ring-amber-500"
                         />
-                        <span>Save this price into permanent Item Catalog for future customers</span>
+                        <span>Save to permanent Item Registry</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 text-amber-300 font-medium cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isBounty}
+                          onChange={(e) => {
+                            setQuoteInputs({
+                              ...quoteInputs,
+                              [it.id]: {
+                                ...quoteInputs[it.id],
+                                isPreferred: e.target.checked
+                              }
+                            });
+                          }}
+                          className="rounded bg-zinc-900 border-zinc-700 text-amber-500 focus:ring-amber-500"
+                        />
+                        <span>Guild Wanted Bounty (90% Payout)</span>
                       </label>
                     </div>
                   </div>
@@ -745,9 +857,9 @@ export default function RunnerDashboard() {
 
             <div className="space-y-4 text-xs">
               <div>
-                <span className="text-zinc-400 block mb-1">Customer Meeting Point:</span>
-                <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 font-mono text-zinc-200">
-                  {selectedOrderForAccept.customer_name} @ {selectedOrderForAccept.zone}
+                <span className="text-zinc-400 block mb-1">Customer Meeting Location:</span>
+                <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-zinc-200">
+                  <div className="font-bold text-white">{selectedOrderForAccept.customer_name} @ {selectedOrderForAccept.zone}</div>
                   <div className="text-amber-400 text-[11px] mt-0.5">{selectedOrderForAccept.camp_location}</div>
                 </div>
               </div>
@@ -774,7 +886,7 @@ export default function RunnerDashboard() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Custom ETA (e.g. 7 mins, on ferry, running highpass)"
+                  placeholder="Custom ETA (e.g. 7 mins, on boat, running highpass)"
                   value={etaInput}
                   onChange={(e) => setEtaInput(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
@@ -783,7 +895,7 @@ export default function RunnerDashboard() {
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                  Runner In-Game Character Note (Optional)
+                  Courier Note (Optional)
                 </label>
                 <input
                   type="text"

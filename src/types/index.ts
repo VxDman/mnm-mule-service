@@ -5,6 +5,8 @@ export interface User {
   username: string;
   display_name: string;
   role: UserRole;
+  is_online: number;
+  last_seen_at: string | null;
   created_at: string;
 }
 
@@ -19,6 +21,10 @@ export interface Item {
   vendor_price_copper: number;
   stack_size: number;
   notes?: string;
+  is_preferred: number; // 1 = bounty/preferred, 0 = regular
+  preferred_payout_percent?: number | null; // e.g. 90%
+  preferred_bounty_notes?: string | null;
+  can_buy: number; // 1 = buyable, 0 = 1c trash not bought
   created_by?: string;
   created_at: string;
   updated_at: string;
@@ -41,6 +47,7 @@ export interface OrderItem {
   vendor_unit_copper: number;
   payout_unit_copper: number;
   is_priced: number; // 1 or 0
+  is_preferred?: number;
   notes?: string;
 }
 
@@ -77,7 +84,10 @@ export interface Order {
 
 export interface AppSettings {
   guild_name: string;
-  guild_tag: string;
+  hours_of_operation: string;
   default_payout_percent: number;
   motd: string;
+  service_status_mode?: string;
+  is_service_open?: boolean;
+  online_runners?: Array<{ id: string; display_name: string }>;
 }

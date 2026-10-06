@@ -46,6 +46,8 @@ function initSchema(db: Database.Database) {
       password_hash TEXT NOT NULL,
       display_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'runner',
+      is_online INTEGER NOT NULL DEFAULT 0,
+      last_seen_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -61,6 +63,10 @@ function initSchema(db: Database.Database) {
       vendor_price_copper INTEGER NOT NULL DEFAULT 0,
       stack_size INTEGER NOT NULL DEFAULT 1,
       notes TEXT,
+      is_preferred INTEGER NOT NULL DEFAULT 0,
+      preferred_payout_percent INTEGER,
+      preferred_bounty_notes TEXT,
+      can_buy INTEGER NOT NULL DEFAULT 1,
       created_by TEXT DEFAULT 'System',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -96,6 +102,7 @@ function initSchema(db: Database.Database) {
       vendor_unit_copper INTEGER NOT NULL DEFAULT 0,
       payout_unit_copper INTEGER NOT NULL DEFAULT 0,
       is_priced INTEGER NOT NULL DEFAULT 0,
+      is_preferred INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
       FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
       FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE SET NULL
@@ -110,30 +117,99 @@ function initSchema(db: Database.Database) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
     );
+  `);
 
+  // Safe migrations for newly added columns if table previously existed
+  const addColumnSafe = (table: string, columnDef: string) => {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDef}`);
+    } catch {
+      // Column already exists
+    }
+  };
+
+  addColumnSafe('users', 'is_online INTEGER NOT NULL DEFAULT 0');
+  addColumnSafe('users', 'last_seen_at DATETIME');
+  addColumnSafe('items', 'is_preferred INTEGER NOT NULL DEFAULT 0');
+  addColumnSafe('items', 'preferred_payout_percent INTEGER');
+  addColumnSafe('items', 'preferred_bounty_notes TEXT');
+  addColumnSafe('items', 'can_buy INTEGER NOT NULL DEFAULT 1');
+  addColumnSafe('order_items', 'is_preferred INTEGER NOT NULL DEFAULT 0');
+
+  // Create indexes now that columns are guaranteed to exist
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_items_name ON items(name);
+    CREATE INDEX IF NOT EXISTS idx_items_preferred ON items(is_preferred);
     CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
     CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
     CREATE INDEX IF NOT EXISTS idx_order_events_order ON order_events(order_id);
   `);
 }
 
+export function parsePriceToCopper(str: string): number {
+  if (!str || !str.trim()) return 0;
+  const s = str.trim().toLowerCase();
+  let total = 0;
+
+  const ppMatch = s.match(/(\d+)\s*(?:plat|platinum|pp)/);
+  if (ppMatch) total += parseInt(ppMatch[1], 10) * 1000;
+
+  const gpMatch = s.match(/(\d+)\s*(?:gold|gp)/);
+  if (gpMatch) total += parseInt(gpMatch[1], 10) * 100;
+
+  const spMatch = s.match(/(\d+)\s*(?:silver|sp)/);
+  if (spMatch) total += parseInt(spMatch[1], 10) * 10;
+
+  const cpMatch = s.match(/(\d+)\s*(?:copper|cp)/);
+  if (cpMatch) total += parseInt(cpMatch[1], 10);
+
+  if (total === 0 && /^\d+$/.test(s)) {
+    total = parseInt(s, 10);
+  }
+  return total;
+}
+
+function guessCategory(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('sword') || n.includes('dagger') || n.includes('axe') || n.includes('mace') || n.includes('spear') || n.includes('bow') || n.includes('staff') || n.includes('scythe') || n.includes('cleaver') || n.includes('lance') || n.includes('trident') || n.includes('hammer') || n.includes('maul')) {
+    return 'Weapon';
+  }
+  if (n.includes('shield') || n.includes('buckler') || n.includes('tunic') || n.includes('boots') || n.includes('bracer') || n.includes('cap') || n.includes('robe') || n.includes('leggings') || n.includes('gloves') || n.includes('cloak') || n.includes('belt') || n.includes('gorget') || n.includes('mantle') || n.includes('veil') || n.includes('mask') || n.includes('vest') || n.includes('gambeson') || n.includes('shoulderg') || n.includes('shoulder')) {
+    return 'Armor / Shield';
+  }
+  if (n.includes('pelt') || n.includes('fur') || n.includes('hide') || n.includes('skin')) {
+    return 'Pelt / Leather';
+  }
+  if (n.includes('meat') || n.includes('pepper') || n.includes('carrot') || n.includes('cabbage') || n.includes('potato') || n.includes('tomato') || n.includes('garlic')) {
+    return 'Food / Provision';
+  }
+  if (n.includes('silk') || n.includes('venom') || n.includes('eye') || n.includes('tooth') || n.includes('fang') || n.includes('bone') || n.includes('carapace') || n.includes('gland') || n.includes('leg') || n.includes('root') || n.includes('wing') || n.includes('foot') || n.includes('ear') || n.includes('wood')) {
+    return 'Reagent / Trade Skill';
+  }
+  return 'Loot';
+}
+
 function seedInitialData(db: Database.Database) {
-  // 1. Seed Settings
+  // 1. Seed Settings (Guild Name: "The Pillar Men", no guild tag)
   const defaultSettings: Record<string, string> = {
-    guild_name: 'Ironforge Courier & Mule Co.',
-    guild_tag: '<MULE>',
+    guild_name: 'The Pillar Men',
+    hours_of_operation: 'Daily 6:00 PM - 2:00 AM EST (or whenever runners are on duty)',
     default_payout_percent: '75',
-    motd: 'Active Camp Mule Service — We trek out to your monster camps and buy your heavy bags so you never have to leave your camp!'
+    service_status_mode: 'auto',
+    motd: 'The Pillar Men Mule Service — Full bags at camp? Stay put, we come to your camp and buy your inventory on the spot!'
   };
 
   const insertSetting = db.prepare(`
-    INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)
+    INSERT INTO settings (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `);
 
   for (const [key, value] of Object.entries(defaultSettings)) {
     insertSetting.run(key, value);
   }
+
+  // Remove old guild_tag setting if it existed
+  db.prepare("DELETE FROM settings WHERE key = 'guild_tag'").run();
 
   // 2. Seed Default Admin User if not already present
   const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
@@ -141,67 +217,88 @@ function seedInitialData(db: Database.Database) {
     const salt = bcrypt.genSaltSync(10);
     const hash = bcrypt.hashSync('ironmule2026', salt);
     db.prepare(`
-      INSERT OR IGNORE INTO users (id, username, password_hash, display_name, role)
-      VALUES (?, ?, ?, ?, ?)
-    `).run('user-admin-default', 'admin', hash, 'Quartermaster Grimm', 'admin');
+      INSERT OR IGNORE INTO users (id, username, password_hash, display_name, role, is_online)
+      VALUES (?, ?, ?, ?, ?, 1)
+    `).run('user-admin-default', 'admin', hash, 'Santana (Quartermaster)', 'admin');
   }
 
-  // 3. Seed starter catalog of popular M&M items if items table is empty
-  const itemCount = db.prepare('SELECT COUNT(*) as count FROM items').get() as { count: number };
-  if (itemCount.count === 0) {
-    const starterItems = [
-      { name: 'Bone Chips', category: 'Bone / Reagent', vendor_price_copper: 80, stack_size: 20 },
-      { name: 'Fire Beetle Eye', category: 'Reagent / Light', vendor_price_copper: 120, stack_size: 20 },
-      { name: 'Spider Silk', category: 'Trade Skill / Reagent', vendor_price_copper: 250, stack_size: 20 },
-      { name: 'Spider Venom Sac', category: 'Poison / Alchemy', vendor_price_copper: 450, stack_size: 20 },
-      { name: 'Wolf Pelt', category: 'Pelt / Tailoring', vendor_price_copper: 50, stack_size: 1 },
-      { name: 'Medium Quality Wolf Pelt', category: 'Pelt / Tailoring', vendor_price_copper: 220, stack_size: 1 },
-      { name: 'High Quality Wolf Pelt', category: 'Pelt / Tailoring', vendor_price_copper: 800, stack_size: 1 },
-      { name: 'Ruined Bear Pelt', category: 'Pelt / Tailoring', vendor_price_copper: 40, stack_size: 1 },
-      { name: 'Black Bear Pelt', category: 'Pelt / Tailoring', vendor_price_copper: 1200, stack_size: 1 },
-      { name: 'High Quality Bear Skin', category: 'Pelt / Tailoring', vendor_price_copper: 2500, stack_size: 1 },
-      { name: 'Lion Tail', category: 'Trophy', vendor_price_copper: 350, stack_size: 1 },
-      { name: 'Snake Venom Sac', category: 'Poison / Alchemy', vendor_price_copper: 180, stack_size: 20 },
-      { name: 'Snake Scales', category: 'Reagent', vendor_price_copper: 40, stack_size: 20 },
-      { name: 'Gnoll Fang', category: 'Quest / Trophy', vendor_price_copper: 850, stack_size: 20 },
-      { name: 'Orc Scalp', category: 'Quest / Trophy', vendor_price_copper: 600, stack_size: 20 },
-      { name: 'Orc Centurion Bracer', category: 'Quest / Armor', vendor_price_copper: 950, stack_size: 1 },
-      { name: 'Rusty Short Sword', category: 'Weapon (1HS)', vendor_price_copper: 150, stack_size: 1 },
-      { name: 'Rusty Broad Sword', category: 'Weapon (1HS)', vendor_price_copper: 280, stack_size: 1 },
-      { name: 'Rusty Two Handed Sword', category: 'Weapon (2HS)', vendor_price_copper: 420, stack_size: 1 },
-      { name: 'Rusty Dagger', category: 'Weapon (Piercing)', vendor_price_copper: 95, stack_size: 1 },
-      { name: 'Rusty Spear', category: 'Weapon (Piercing)', vendor_price_copper: 310, stack_size: 1 },
-      { name: 'Rusty Halberd', category: 'Weapon (2H Slash)', vendor_price_copper: 520, stack_size: 1 },
-      { name: 'Bronze Longsword', category: 'Weapon (1HS)', vendor_price_copper: 3500, stack_size: 1 },
-      { name: 'Bronze Mace', category: 'Weapon (1HB)', vendor_price_copper: 2800, stack_size: 1 },
-      { name: 'Bronze Armor Fragment', category: 'Metal', vendor_price_copper: 1100, stack_size: 5 },
-      { name: 'Fine Steel Dagger', category: 'Weapon (Piercing)', vendor_price_copper: 4500, stack_size: 1 },
-      { name: 'Fine Steel Scimitar', category: 'Weapon (1HS)', vendor_price_copper: 7200, stack_size: 1 },
-      { name: 'Fine Steel Two Handed Sword', category: 'Weapon (2HS)', vendor_price_copper: 9800, stack_size: 1 },
-      { name: 'Cracked Staff', category: 'Weapon (1HB)', vendor_price_copper: 180, stack_size: 1 },
-      { name: 'Fire Opal', category: 'Gem / Jewelry', vendor_price_copper: 10000, stack_size: 20 },
-      { name: 'Star Rose Quartz', category: 'Gem / Jewelry', vendor_price_copper: 5000, stack_size: 20 },
-      { name: 'Raw Diamond', category: 'Gem / Jewelry', vendor_price_copper: 50000, stack_size: 20 },
-      { name: 'Goblin Meat', category: 'Food', vendor_price_copper: 30, stack_size: 20 },
-      { name: 'Zombie Flesh', category: 'Reagent', vendor_price_copper: 65, stack_size: 20 },
-      { name: 'Bat Wing', category: 'Reagent', vendor_price_copper: 25, stack_size: 20 }
-    ];
+  // 3. Import & Seed items from Google Sheet CSV (data/imported_prices.csv)
+  const csvPath = path.join(process.cwd(), 'data', 'imported_prices.csv');
+  if (fs.existsSync(csvPath)) {
+    const content = fs.readFileSync(csvPath, 'utf8');
+    const lines = content.split('\n').filter((l) => l.trim().length > 0);
+    lines.shift(); // Remove header
 
-    const insertItem = db.prepare(`
-      INSERT OR IGNORE INTO items (id, name, category, vendor_price_copper, stack_size, notes, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, 'System')
+    const upsertItemStmt = db.prepare(`
+      INSERT INTO items (
+        id, name, category, vendor_price_copper, stack_size, notes,
+        is_preferred, preferred_payout_percent, preferred_bounty_notes, can_buy, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'GoogleSheet Import')
+      ON CONFLICT(name) DO UPDATE SET
+        vendor_price_copper = excluded.vendor_price_copper,
+        can_buy = excluded.can_buy,
+        is_preferred = excluded.is_preferred,
+        preferred_payout_percent = excluded.preferred_payout_percent,
+        preferred_bounty_notes = excluded.preferred_bounty_notes
     `);
 
-    for (const item of starterItems) {
-      insertItem.run(
-        'item-' + crypto.randomUUID().slice(0, 8),
-        item.name,
-        item.category,
-        item.vendor_price_copper,
-        item.stack_size,
-        'Standard starter catalog item'
-      );
-    }
+    // Define Preferred Bounty Items & custom payout rates
+    const preferredBounties: Record<string, { percent: number; notes: string }> = {
+      'Bone Chips': { percent: 100, notes: '⭐ Guild Research Bounty: Necromancer Spell Component (Bought even at 1c!)' },
+      'Spider Silk': { percent: 90, notes: '⭐ High Demand Tailoring Crafting Bounty' },
+      'Spider Venom Sac': { percent: 90, notes: '⭐ Poison & Alchemy Guild Reagent Bounty' },
+      'Immature Snake Venom Sac': { percent: 85, notes: '⭐ Alchemy Component Bounty' },
+      'Fire Beetle Eye': { percent: 90, notes: '⭐ Light Source & Spell Reagent Bounty' },
+      'Harvallen Root': { percent: 90, notes: '⭐ High-Value Foraged Root Bounty' },
+      'Crocodile Hide': { percent: 85, notes: '⭐ Heavy Armor & Crafting Leather Bounty' },
+      'Ashira Warrior Pelt': { percent: 85, notes: '⭐ Trophy & Tailoring Bounty' },
+      'Cracked Staff': { percent: 80, notes: '⭐ High-Vendor Value Caster Weapon Bounty' }
+    };
+
+    const transaction = db.transaction(() => {
+      for (const line of lines) {
+        const parts = line.split(',');
+        const name = parts[0]?.trim();
+        if (!name) continue;
+
+        const earlierCopper = parsePriceToCopper(parts[1] || '');
+        const higherCopper = parsePriceToCopper(parts[2] || '');
+        const otherCopper = parsePriceToCopper(parts[3] || '');
+
+        // Logic: "use the highest price if available, or earliest price"
+        let finalPrice = higherCopper > 0 ? higherCopper : earlierCopper;
+        if (otherCopper > finalPrice) {
+          finalPrice = otherCopper;
+        }
+
+        // Logic: "Any 1c item would not be bought, except for bone chips (make an exception)."
+        const isBoneChips = name.toLowerCase() === 'bone chips';
+        const canBuy = isBoneChips || finalPrice > 1;
+
+        const bounty = preferredBounties[name];
+        const isPreferred = bounty ? 1 : 0;
+        const preferredPercent = bounty ? bounty.percent : null;
+        const bountyNotes = bounty ? bounty.notes : null;
+
+        const category = guessCategory(name);
+        const stackSize = category.includes('Reagent') || category.includes('Food') || isBoneChips ? 20 : 1;
+
+        upsertItemStmt.run(
+          'item-' + crypto.randomUUID().slice(0, 8),
+          name,
+          category,
+          finalPrice,
+          stackSize,
+          canBuy ? (bountyNotes || 'Imported from verified price registry') : '1c vendor trash - not purchased by runners',
+          isPreferred,
+          preferredPercent,
+          bountyNotes,
+          canBuy ? 1 : 0
+        );
+      }
+    });
+
+    transaction();
   }
 }
 
@@ -215,11 +312,19 @@ export function getSettings(): AppSettings {
   for (const r of rows) {
     map[r.key] = r.value;
   }
+
+  const onlineRunners = getOnlineRunners();
+  const serviceMode = map.service_status_mode || 'auto';
+  const isOpen = serviceMode === 'open' || (serviceMode === 'auto' && onlineRunners.length > 0);
+
   return {
-    guild_name: map.guild_name || 'Ironforge Courier & Mule Co.',
-    guild_tag: map.guild_tag || '<MULE>',
+    guild_name: map.guild_name || 'The Pillar Men',
+    hours_of_operation: map.hours_of_operation || 'Daily 6:00 PM - 2:00 AM EST (or whenever runners are on duty)',
     default_payout_percent: parseInt(map.default_payout_percent || '75', 10),
-    motd: map.motd || ''
+    motd: map.motd || '',
+    service_status_mode: serviceMode,
+    is_service_open: isOpen,
+    online_runners: onlineRunners
   };
 }
 
@@ -230,17 +335,36 @@ export function updateSetting(key: string, value: string): void {
   `).run(key, value);
 }
 
+// Runner Duty & Online Status
+export function setRunnerDutyStatus(userId: string, isOnline: boolean): void {
+  db.prepare(`
+    UPDATE users
+    SET is_online = ?,
+        last_seen_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(isOnline ? 1 : 0, userId);
+}
+
+export function getOnlineRunners(): Array<{ id: string; display_name: string }> {
+  return db.prepare(`
+    SELECT id, display_name
+    FROM users
+    WHERE is_online = 1
+    ORDER BY display_name ASC
+  `).all() as Array<{ id: string; display_name: string }>;
+}
+
 // User Queries
 export function getUserByUsername(username: string): UserWithPassword | undefined {
   return db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username) as UserWithPassword | undefined;
 }
 
 export function getUserById(id: string): User | undefined {
-  return db.prepare('SELECT id, username, display_name, role, created_at FROM users WHERE id = ?').get(id) as User | undefined;
+  return db.prepare('SELECT id, username, display_name, role, is_online, last_seen_at, created_at FROM users WHERE id = ?').get(id) as User | undefined;
 }
 
 export function getAllUsers(): User[] {
-  return db.prepare('SELECT id, username, display_name, role, created_at FROM users ORDER BY created_at ASC').all() as User[];
+  return db.prepare('SELECT id, username, display_name, role, is_online, last_seen_at, created_at FROM users ORDER BY created_at ASC').all() as User[];
 }
 
 export function createUser(data: { username: string; password: string; display_name: string; role: 'admin' | 'runner' }): User {
@@ -248,8 +372,8 @@ export function createUser(data: { username: string; password: string; display_n
   const salt = bcrypt.genSaltSync(10);
   const password_hash = bcrypt.hashSync(data.password, salt);
   db.prepare(`
-    INSERT INTO users (id, username, password_hash, display_name, role)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO users (id, username, password_hash, display_name, role, is_online)
+    VALUES (?, ?, ?, ?, ?, 0)
   `).run(id, data.username.toLowerCase().trim(), password_hash, data.display_name.trim(), data.role);
   return getUserById(id)!;
 }
@@ -277,16 +401,20 @@ export function findItemByName(name: string): Item | undefined {
   return db.prepare('SELECT * FROM items WHERE name = ? COLLATE NOCASE').get(name.trim()) as Item | undefined;
 }
 
-export function searchItems(query: string, limit = 20): Item[] {
+export function searchItems(query: string, limit = 50): Item[] {
   if (!query || query.trim() === '') {
-    return db.prepare('SELECT * FROM items ORDER BY name ASC LIMIT ?').all(limit) as Item[];
+    return db.prepare('SELECT * FROM items WHERE can_buy = 1 ORDER BY is_preferred DESC, name ASC LIMIT ?').all(limit) as Item[];
   }
   const clean = `%${query.trim()}%`;
-  return db.prepare('SELECT * FROM items WHERE name LIKE ? ORDER BY name ASC LIMIT ?').all(clean, limit) as Item[];
+  return db.prepare('SELECT * FROM items WHERE name LIKE ? AND can_buy = 1 ORDER BY is_preferred DESC, name ASC LIMIT ?').all(clean, limit) as Item[];
+}
+
+export function getPreferredItems(): Item[] {
+  return db.prepare('SELECT * FROM items WHERE is_preferred = 1 AND can_buy = 1 ORDER BY name ASC').all() as Item[];
 }
 
 export function getAllItems(): Item[] {
-  return db.prepare('SELECT * FROM items ORDER BY name ASC').all() as Item[];
+  return db.prepare('SELECT * FROM items ORDER BY is_preferred DESC, name ASC').all() as Item[];
 }
 
 export function upsertItem(item: {
@@ -295,6 +423,10 @@ export function upsertItem(item: {
   vendor_price_copper: number;
   stack_size?: number;
   notes?: string;
+  is_preferred?: number;
+  preferred_payout_percent?: number | null;
+  preferred_bounty_notes?: string | null;
+  can_buy?: number;
   created_by?: string;
 }): Item {
   const existing = findItemByName(item.name);
@@ -305,6 +437,10 @@ export function upsertItem(item: {
           category = COALESCE(?, category),
           stack_size = COALESCE(?, stack_size),
           notes = COALESCE(?, notes),
+          is_preferred = COALESCE(?, is_preferred),
+          preferred_payout_percent = COALESCE(?, preferred_payout_percent),
+          preferred_bounty_notes = COALESCE(?, preferred_bounty_notes),
+          can_buy = COALESCE(?, can_buy),
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
@@ -312,14 +448,20 @@ export function upsertItem(item: {
       item.category || null,
       item.stack_size || null,
       item.notes || null,
+      item.is_preferred !== undefined ? item.is_preferred : null,
+      item.preferred_payout_percent !== undefined ? item.preferred_payout_percent : null,
+      item.preferred_bounty_notes !== undefined ? item.preferred_bounty_notes : null,
+      item.can_buy !== undefined ? item.can_buy : null,
       existing.id
     );
     return findItemByName(item.name)!;
   } else {
     const id = 'item-' + crypto.randomUUID().slice(0, 8);
     db.prepare(`
-      INSERT INTO items (id, name, category, vendor_price_copper, stack_size, notes, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO items (
+        id, name, category, vendor_price_copper, stack_size, notes,
+        is_preferred, preferred_payout_percent, preferred_bounty_notes, can_buy, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       item.name.trim(),
@@ -327,6 +469,10 @@ export function upsertItem(item: {
       item.vendor_price_copper,
       item.stack_size || 1,
       item.notes || null,
+      item.is_preferred || 0,
+      item.preferred_payout_percent || null,
+      item.preferred_bounty_notes || null,
+      item.can_buy !== undefined ? item.can_buy : 1,
       item.created_by || 'Runner'
     );
     return findItemByName(item.name)!;
@@ -339,7 +485,6 @@ export function deleteItem(id: string): void {
 
 // Order Queries
 function generateOrderId(): string {
-  // Friendly short code: MM-XXXX (e.g. MM-4821)
   const randNum = Math.floor(1000 + Math.random() * 9000);
   return `MM-${randNum}`;
 }
@@ -356,10 +501,9 @@ export function createOrder(data: {
   }>;
 }): { order: Order; customer_token: string } {
   const settings = getSettings();
-  const payout_percent = settings.default_payout_percent;
+  const base_payout_percent = settings.default_payout_percent;
 
   let orderId = generateOrderId();
-  // Ensure unique
   while (db.prepare('SELECT id FROM orders WHERE id = ?').get(orderId)) {
     orderId = generateOrderId();
   }
@@ -373,11 +517,22 @@ export function createOrder(data: {
   const preparedItems = data.items.map((it) => {
     const knownItem = findItemByName(it.item_name);
     const quantity = Math.max(1, it.quantity || 1);
+
     if (knownItem && knownItem.vendor_price_copper > 0) {
+      const effectivePayoutPercent = (knownItem.is_preferred && knownItem.preferred_payout_percent)
+        ? knownItem.preferred_payout_percent
+        : base_payout_percent;
+
       const vendor_unit = knownItem.vendor_price_copper;
-      const payout_unit = calculatePayout(vendor_unit, payout_percent);
+      let payout_unit = calculatePayout(vendor_unit, effectivePayoutPercent);
+
+      if (knownItem.name.toLowerCase() === 'bone chips' && payout_unit === 0) {
+        payout_unit = 1;
+      }
+
       total_vendor += vendor_unit * quantity;
       total_payout += payout_unit * quantity;
+
       return {
         id: 'oi-' + crypto.randomUUID().slice(0, 8),
         item_id: knownItem.id,
@@ -386,6 +541,7 @@ export function createOrder(data: {
         vendor_unit_copper: vendor_unit,
         payout_unit_copper: payout_unit,
         is_priced: 1,
+        is_preferred: knownItem.is_preferred || 0,
         notes: it.notes || ''
       };
     } else {
@@ -398,6 +554,7 @@ export function createOrder(data: {
         vendor_unit_copper: 0,
         payout_unit_copper: 0,
         is_priced: 0,
+        is_preferred: 0,
         notes: it.notes || ''
       };
     }
@@ -420,7 +577,7 @@ export function createOrder(data: {
       data.camp_location.trim(),
       data.customer_notes?.trim() || null,
       initialStatus,
-      payout_percent,
+      base_payout_percent,
       total_vendor,
       total_payout
     );
@@ -428,8 +585,8 @@ export function createOrder(data: {
     const insertOrderItem = db.prepare(`
       INSERT INTO order_items (
         id, order_id, item_id, item_name, quantity, vendor_unit_copper,
-        payout_unit_copper, is_priced, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        payout_unit_copper, is_priced, is_preferred, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const item of preparedItems) {
@@ -442,6 +599,7 @@ export function createOrder(data: {
         item.vendor_unit_copper,
         item.payout_unit_copper,
         item.is_priced,
+        item.is_preferred,
         item.notes || null
       );
     }
@@ -456,8 +614,8 @@ export function createOrder(data: {
       'created',
       data.customer_name,
       hasUnpriced
-        ? `Order submitted with ${preparedItems.length} item(s). Waiting for runner quote on unpriced items.`
-        : `Order submitted with ${preparedItems.length} item(s). All items priced from catalog!`
+        ? `Order placed with ${preparedItems.length} item(s). Runner review needed for unpriced items.`
+        : `Order placed with ${preparedItems.length} item(s). All items priced from catalog!`
     );
   });
 
@@ -506,7 +664,14 @@ export function getOrders(statusFilter?: string): Order[] {
 
 export function updateOrderQuotes(
   orderId: string,
-  quotes: Array<{ order_item_id: string; vendor_unit_copper: number; save_to_catalog?: boolean; category?: string }>,
+  quotes: Array<{
+    order_item_id: string;
+    vendor_unit_copper: number;
+    save_to_catalog?: boolean;
+    category?: string;
+    is_preferred?: boolean;
+    preferred_payout_percent?: number;
+  }>,
   runnerName: string
 ): Order | undefined {
   const order = getOrderById(orderId);
@@ -520,28 +685,35 @@ export function updateOrderQuotes(
       if (!oi) continue;
 
       const vendor_unit = Math.max(0, q.vendor_unit_copper);
-      const payout_unit = calculatePayout(vendor_unit, order.payout_percent);
+      const effectiveRate = q.is_preferred && q.preferred_payout_percent ? q.preferred_payout_percent : order.payout_percent;
+      let payout_unit = calculatePayout(vendor_unit, effectiveRate);
+
+      if (oi.item_name.toLowerCase() === 'bone chips' && payout_unit === 0 && vendor_unit > 0) {
+        payout_unit = 1;
+      }
 
       db.prepare(`
         UPDATE order_items
         SET vendor_unit_copper = ?,
             payout_unit_copper = ?,
-            is_priced = 1
+            is_priced = 1,
+            is_preferred = ?
         WHERE id = ?
-      `).run(vendor_unit, payout_unit, q.order_item_id);
+      `).run(vendor_unit, payout_unit, q.is_preferred ? 1 : 0, q.order_item_id);
 
-      // Auto-save to permanent catalog if requested or by default
+      // Auto-save to permanent catalog
       if (q.save_to_catalog !== false && vendor_unit > 0) {
         upsertItem({
           name: oi.item_name,
           category: q.category || 'Loot',
           vendor_price_copper: vendor_unit,
+          is_preferred: q.is_preferred ? 1 : 0,
+          preferred_payout_percent: q.preferred_payout_percent || null,
           created_by: runnerName
         });
       }
     }
 
-    // Recheck if all items in order are priced now
     const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId) as OrderItem[];
     let total_vendor = 0;
     let total_payout = 0;
@@ -634,7 +806,7 @@ export function updateOrderStatus(
 
   const defaultMsgMap: Record<string, string> = {
     arrived: `${actorName} has arrived at your camp! Please initiate trade in-game.`,
-    completed: `Trade completed! Runner has safely purchased inventory. Thank you for using our Mule Service!`,
+    completed: `Trade completed! Runner has safely purchased inventory. Thank you for using The Pillar Men Mule Service!`,
     cancelled: `Order was cancelled. Reason: ${message || 'No reason provided'}.`
   };
 
@@ -673,8 +845,10 @@ export function getStats() {
   const totalCompleted = db.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'completed'").get() as { count: number };
   const activeOrders = db.prepare("SELECT COUNT(*) as count FROM orders WHERE status IN ('pending_quote', 'quoted', 'accepted', 'arrived')").get() as { count: number };
   const totalRevenue = db.prepare("SELECT COALESCE(SUM(total_vendor_copper), 0) as vendor, COALESCE(SUM(total_payout_copper), 0) as payout FROM orders WHERE status = 'completed'").get() as { vendor: number; payout: number };
-  const itemCount = db.prepare("SELECT COUNT(*) as count FROM items").get() as { count: number };
+  const itemCount = db.prepare("SELECT COUNT(*) as count FROM items WHERE can_buy = 1").get() as { count: number };
   const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
+  const onlineRunnersCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE is_online = 1").get() as { count: number };
+  const preferredCount = db.prepare("SELECT COUNT(*) as count FROM items WHERE is_preferred = 1 AND can_buy = 1").get() as { count: number };
 
   const totalProfit = totalRevenue.vendor - totalRevenue.payout;
 
@@ -685,6 +859,8 @@ export function getStats() {
     totalPayoutCopper: totalRevenue.payout,
     totalProfitCopper: totalProfit,
     itemCount: itemCount.count,
-    userCount: userCount.count
+    userCount: userCount.count,
+    onlineRunnersCount: onlineRunnersCount.count,
+    preferredCount: preferredCount.count
   };
 }

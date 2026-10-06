@@ -13,7 +13,10 @@ import {
   Search,
   Bell,
   BellOff,
-  Coins
+  Coins,
+  Radio,
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 import { User, AppSettings } from '@/types';
 
@@ -25,6 +28,16 @@ export function Navbar() {
   const [trackId, setTrackId] = useState('');
   const [showTrackModal, setShowTrackModal] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isDutyLoading, setIsDutyLoading] = useState(false);
+
+  const fetchStatus = () => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.settings) setSettings(data.settings);
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     // Fetch logged in user
@@ -35,25 +48,42 @@ export function Navbar() {
       })
       .catch(() => {});
 
-    // Fetch public settings
-    fetch('/api/settings')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.settings) setSettings(data.settings);
-      })
-      .catch(() => {});
+    fetchStatus();
 
     // Check sound preference
     const soundPref = localStorage.getItem('mule_sound_enabled');
     if (soundPref !== null) {
       setSoundEnabled(soundPref === 'true');
     }
+
+    const interval = setInterval(fetchStatus, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const toggleSound = () => {
     const next = !soundEnabled;
     setSoundEnabled(next);
     localStorage.setItem('mule_sound_enabled', String(next));
+  };
+
+  const handleToggleDuty = async () => {
+    if (!user || isDutyLoading) return;
+    setIsDutyLoading(true);
+
+    const nextDuty = !user.is_online;
+    try {
+      const res = await fetch('/api/runner/duty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_online: nextDuty })
+      });
+      if (res.ok) {
+        setUser({ ...user, is_online: nextDuty ? 1 : 0 });
+        fetchStatus();
+      }
+    } finally {
+      setIsDutyLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -71,8 +101,9 @@ export function Navbar() {
     setTrackId('');
   };
 
-  const guildName = settings?.guild_name || 'Ironforge Courier';
-  const guildTag = settings?.guild_tag || '<MULE>';
+  const guildName = settings?.guild_name || 'The Pillar Men';
+  const isOpen = settings?.is_service_open ?? false;
+  const onlineRunnersCount = settings?.online_runners?.length || 0;
 
   return (
     <>
@@ -86,18 +117,34 @@ export function Navbar() {
                   <Coins className="w-5 h-5 text-amber-200" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5 font-bold tracking-tight text-white group-hover:text-amber-300 transition-colors">
-                    <span>{guildName}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-600/50 text-amber-400 font-mono">
-                      {guildTag}
-                    </span>
+                  <div className="flex items-center gap-2 font-black tracking-tight text-white group-hover:text-amber-300 transition-colors">
+                    <span className="text-base">{guildName}</span>
                   </div>
-                  <p className="text-[11px] text-zinc-400 font-medium">M&M Camp Mule & Courier</p>
+                  <p className="text-[11px] text-zinc-400 font-medium">Camp Trade & Courier Service</p>
                 </div>
               </Link>
 
+              {/* Service Open/Closed Live Indicator */}
+              <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-zinc-800 text-xs">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                    isOpen
+                      ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                      : 'bg-zinc-900 border-zinc-700 text-zinc-400'
+                  }`}
+                  title={settings?.hours_of_operation}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'
+                    }`}
+                  />
+                  <span>{isOpen ? `Service Open (${onlineRunnersCount} runner${onlineRunnersCount === 1 ? '' : 's'})` : 'Closed / Off Duty'}</span>
+                </span>
+              </div>
+
               {/* Main Nav Links */}
-              <nav className="hidden md:flex items-center gap-1 ml-6 text-sm">
+              <nav className="hidden md:flex items-center gap-1 ml-4 text-sm">
                 <Link
                   href="/"
                   className={`px-3 py-1.5 rounded-md transition-colors ${
@@ -106,7 +153,7 @@ export function Navbar() {
                       : 'text-zinc-300 hover:text-white hover:bg-zinc-800/60'
                   }`}
                 >
-                  Request Mule
+                  Request Courier
                 </Link>
 
                 <button
@@ -141,7 +188,7 @@ export function Navbar() {
                       }`}
                     >
                       <Layers className="w-4 h-4 text-cyan-400" />
-                      Price Catalog
+                      Prices & Bounties
                     </Link>
 
                     {user.role === 'admin' && (
@@ -162,8 +209,26 @@ export function Navbar() {
               </nav>
             </div>
 
-            {/* Right Side: Sound Toggle & Auth */}
+            {/* Right Side: Runner Duty Switch & Sound & Auth */}
             <div className="flex items-center gap-3">
+              {/* Runner Duty Status Switch */}
+              {user && (
+                <button
+                  type="button"
+                  onClick={handleToggleDuty}
+                  disabled={isDutyLoading}
+                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                    user.is_online
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-zinc-950 border-emerald-400 animate-pulse'
+                      : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-zinc-700'
+                  }`}
+                  title="Click to toggle your active courier duty status and open/close service"
+                >
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>{user.is_online ? 'ON DUTY' : 'OFF DUTY'}</span>
+                </button>
+              )}
+
               {user && (
                 <button
                   type="button"
@@ -176,7 +241,7 @@ export function Navbar() {
                   }`}
                 >
                   {soundEnabled ? <Bell className="w-4 h-4 text-emerald-400" /> : <BellOff className="w-4 h-4" />}
-                  <span className="hidden sm:inline text-[11px]">{soundEnabled ? 'Chime ON' : 'Chime OFF'}</span>
+                  <span className="hidden xl:inline text-[11px]">{soundEnabled ? 'Chime ON' : 'Chime OFF'}</span>
                 </button>
               )}
 
@@ -185,7 +250,7 @@ export function Navbar() {
                   <div className="hidden sm:flex flex-col text-right">
                     <span className="text-xs font-semibold text-zinc-200">{user.display_name}</span>
                     <span className="text-[10px] text-amber-400 font-mono capitalize">
-                      {user.role === 'admin' ? 'Guild Leader / Admin' : 'Runner'}
+                      {user.role === 'admin' ? 'Guild Leader' : 'Runner'}
                     </span>
                   </div>
                   <button
@@ -236,7 +301,7 @@ export function Navbar() {
               href="/items"
               className={`p-1.5 ${pathname === '/items' ? 'text-amber-400 font-bold' : 'text-zinc-400'}`}
             >
-              Catalog
+              Prices
             </Link>
             {user.role === 'admin' && (
               <Link
@@ -259,7 +324,7 @@ export function Navbar() {
               Track Existing Order
             </h3>
             <p className="text-xs text-zinc-400 mb-4">
-              Enter your Order Code (e.g. <span className="font-mono text-amber-300">MM-4821</span>) to check current runner status, quote updates, and arrival.
+              Enter your Order Code (e.g. <span className="font-mono text-amber-300">MM-4821</span>) to check courier status, quote updates, and arrival.
             </p>
 
             <form onSubmit={handleTrackSubmit} className="space-y-4">

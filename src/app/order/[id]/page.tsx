@@ -19,7 +19,8 @@ import {
   Compass,
   AlertTriangle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Star
 } from 'lucide-react';
 import { CoinDisplay } from '@/components/CoinDisplay';
 import { Order, OrderStatus } from '@/types';
@@ -67,7 +68,6 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
   }, [orderId]);
 
   useEffect(() => {
-    // Check localStorage for customer token
     try {
       const tok = localStorage.getItem(`mule_token_${orderId}`);
       if (tok) setCustomerToken(tok);
@@ -180,10 +180,10 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
 
   // Stepper calculations
   const steps: { key: OrderStatus; label: string; desc: string }[] = [
-    { key: 'pending_quote', label: 'Order Placed', desc: 'Received in guild queue' },
-    { key: 'quoted', label: 'Quote Ready', desc: 'All items evaluated' },
-    { key: 'accepted', label: 'Runner Dispatched', desc: 'Courier en route to camp' },
-    { key: 'arrived', label: 'Runner Arrived', desc: 'Ready to trade in-game' },
+    { key: 'pending_quote', label: 'Order Placed', desc: 'Received in queue' },
+    { key: 'quoted', label: 'Quote Ready', desc: 'All items priced' },
+    { key: 'accepted', label: 'Runner Dispatched', desc: 'Courier en route' },
+    { key: 'arrived', label: 'Runner Arrived', desc: 'Ready to trade' },
     { key: 'completed', label: 'Trade Complete', desc: 'Coins delivered' }
   ];
 
@@ -277,7 +277,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                 <MapPin className="w-6 h-6 text-cyan-300" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Your Runner Has Arrived at Camp!</h3>
+                <h3 className="text-base font-bold text-white">Your Courier Has Arrived at Camp!</h3>
                 <p className="text-xs text-cyan-200">
                   Runner <span className="font-bold underline">{order.assigned_runner_name}</span> is standing at your camp. Please open trade in-game.
                 </p>
@@ -302,9 +302,9 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                 <Clock className="w-6 h-6 text-amber-400" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Runner Dispatched & En Route!</h3>
+                <h3 className="text-base font-bold text-white">Courier Dispatched & En Route!</h3>
                 <p className="text-xs text-amber-200">
-                  <span className="font-semibold text-white">{order.assigned_runner_name}</span> is running to your location. Estimated Travel Time: <span className="font-bold underline">{order.runner_eta || 'En route'}</span>.
+                  <span className="font-semibold text-white">{order.assigned_runner_name}</span> is running to your camp location. Estimated Travel Time: <span className="font-bold underline">{order.runner_eta || 'En route'}</span>.
                 </p>
               </div>
             </div>
@@ -328,7 +328,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
             <div>
               <h3 className="text-base font-bold text-white">Trade Completed Successfully!</h3>
               <p className="text-xs text-emerald-200">
-                Loot sold and coins delivered. Thank you for using our Mule Courier Service! Good luck on your camp!
+                Loot sold and coins delivered. Thank you for using The Pillar Men Trade Service! Good luck on your camp!
               </p>
             </div>
           </div>
@@ -357,7 +357,6 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
               const state = getStepStatus(st.key);
               return (
                 <div key={st.key} className="flex flex-col items-start sm:items-center text-left sm:text-center relative">
-                  {/* Step Icon */}
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs mb-2 transition-all ${
                       state === 'done'
@@ -394,7 +393,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
             <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 shadow-xl">
               <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-rose-400" />
-                Camp & Meeting Point
+                Camp & Meeting Location
               </h3>
 
               <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-4 space-y-3">
@@ -403,8 +402,8 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                   <span className="font-semibold text-white">{order.zone}</span>
                 </div>
                 <div className="flex items-start justify-between text-xs">
-                  <span className="text-zinc-400">Camp / Coordinates:</span>
-                  <span className="font-semibold text-amber-300 font-mono text-right max-w-[280px]">
+                  <span className="text-zinc-400">Camp Location / Landmarks:</span>
+                  <span className="font-semibold text-amber-300 text-right max-w-[280px]">
                     {order.camp_location}
                   </span>
                 </div>
@@ -425,7 +424,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                   Itemized Quote Receipt
                 </h3>
                 <span className="text-xs font-mono text-zinc-400">
-                  Payout Rate: <span className="text-amber-400 font-bold">{order.payout_percent}%</span>
+                  Base Payout Rate: <span className="text-amber-400 font-bold">{order.payout_percent}%</span>
                 </span>
               </div>
 
@@ -444,6 +443,12 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                       <tr key={it.id} className="hover:bg-zinc-800/30">
                         <td className="py-3">
                           <span className="font-semibold text-zinc-200">{it.item_name}</span>
+                          {it.is_preferred === 1 && (
+                            <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-950/80 border border-amber-500/50 text-amber-300 font-bold">
+                              <Star className="w-3 h-3 fill-amber-300" />
+                              Bounty
+                            </span>
+                          )}
                           {!it.is_priced && (
                             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-amber-950/60 border border-amber-600/40 text-amber-400">
                               Awaiting Runner Quote
@@ -488,7 +493,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
             </div>
           </div>
 
-          {/* Right Col: Runner Dispatch Card & Live Timeline / Chat */}
+          {/* Right Col: Courier Dispatch Card & Live Timeline / Chat */}
           <div className="space-y-6">
             {/* Runner Card */}
             <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
@@ -505,7 +510,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                     </div>
                     <div>
                       <div className="text-sm font-bold text-white">{order.assigned_runner_name}</div>
-                      <div className="text-[11px] text-amber-400 font-mono">Official Guild Runner</div>
+                      <div className="text-[11px] text-amber-400 font-mono">The Pillar Men Courier</div>
                     </div>
                   </div>
 
@@ -525,9 +530,9 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
               ) : (
                 <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-center space-y-2">
                   <Clock className="w-8 h-8 text-zinc-600 mx-auto" />
-                  <p className="text-xs text-zinc-400 font-medium">Awaiting Guild Runner Claim</p>
+                  <p className="text-xs text-zinc-400 font-medium">Awaiting Courier Claim</p>
                   <p className="text-[11px] text-zinc-500">
-                    Orders are broadcast to online guild runners. A runner will claim this shortly!
+                    Orders are broadcast to online runners. A runner will claim this shortly!
                   </p>
                 </div>
               )}
@@ -567,7 +572,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                 <form onSubmit={handleSendMessage} className="mt-3 pt-3 border-t border-zinc-800 flex gap-2">
                   <input
                     type="text"
-                    placeholder="Send camp note (e.g. repop at camp)..."
+                    placeholder="Send camp update (e.g. repop at camp)..."
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
                     className="flex-1 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
@@ -594,7 +599,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
             <div className="text-center">
               <h3 className="text-base font-bold text-white">Cancel Mule Order?</h3>
               <p className="text-xs text-zinc-400 mt-1">
-                Are you sure you want to cancel this order? The runner will be notified not to make the trek to your camp.
+                Are you sure you want to cancel this order? The courier will be notified not to make the trek to your camp.
               </p>
             </div>
             <div className="flex items-center justify-center gap-3 pt-2">

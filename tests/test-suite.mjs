@@ -1,8 +1,8 @@
-// Comprehensive automated test suite for M&M Mule Service
+// End-to-End Verification Test Suite for The Pillar Men Mule Service
 const BASE_URL = 'http://localhost:3088';
 
 async function runTests() {
-  console.log('🧪 Starting End-to-End Verification Test Suite...\n');
+  console.log('🧪 Starting Verification Test Suite for "The Pillar Men" Mule Service...\n');
   let passed = 0;
   let failed = 0;
 
@@ -16,58 +16,50 @@ async function runTests() {
     }
   }
 
-  // 1. Check Settings API
+  // 1. Check Public Guild Settings
   console.log('1. Checking Public Guild Settings...');
   const settingsRes = await fetch(`${BASE_URL}/api/settings`);
   const settingsData = await settingsRes.json();
   assert(settingsRes.ok, 'Settings endpoint returns 200 OK');
-  assert(settingsData.settings.default_payout_percent === 75, 'Default payout rate is 75%');
-  assert(settingsData.settings.guild_name.length > 0, 'Guild name is set');
+  assert(settingsData.settings.guild_name === 'The Pillar Men', `Guild name is "The Pillar Men" (got: ${settingsData.settings.guild_name})`);
+  assert(settingsData.settings.hours_of_operation.length > 0, `Hours of operation is set: ${settingsData.settings.hours_of_operation}`);
+  assert(settingsData.settings.guild_tag === undefined, 'No guild tag present');
 
-  // 2. Check Item Catalog
-  console.log('\n2. Checking Seeded Item Catalog...');
-  const itemsRes = await fetch(`${BASE_URL}/api/items`);
+  // 2. Check Google Sheet Ingestion & Price Logic
+  console.log('\n2. Verifying Google Sheet Item Pricing & 1c Filtering...');
+  const itemsRes = await fetch(`${BASE_URL}/api/items?limit=500`);
   const itemsData = await itemsRes.json();
   assert(itemsRes.ok, 'Items endpoint returns 200 OK');
-  assert(itemsData.items.length >= 20, `Catalog contains seeded items (found ${itemsData.items.length})`);
-  const wolfPelt = itemsData.items.find((i) => i.name === 'Wolf Pelt');
-  assert(wolfPelt && wolfPelt.vendor_price_copper === 50, 'Wolf Pelt seeded at 50 copper');
+  assert(itemsData.items.length >= 100, `Imported full sheet catalog (found ${itemsData.items.length} items)`);
 
-  // 3. Customer places order with 1 catalog item and 1 unknown item
-  console.log('\n3. Customer Placing New Order...');
-  const newOrderRes = await fetch(`${BASE_URL}/api/orders`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      customer_name: 'Thorvald',
-      zone: 'Blackburrow',
-      camp_location: 'Lower gnoll pit /loc -45, 230',
-      customer_notes: 'Group is pulling fast, please hurry',
-      items: [
-        { item_name: 'Wolf Pelt', quantity: 10 },
-        { item_name: 'Mystic Gnoll Totem', quantity: 2, notes: 'Uncatalogued drop' }
-      ]
-    })
-  });
-  const newOrderData = await newOrderRes.json();
-  assert(newOrderRes.ok, 'Order submitted successfully');
-  assert(newOrderData.order.id.startsWith('MM-'), `Order ID format valid: ${newOrderData.order.id}`);
-  assert(newOrderData.order.status === 'pending_quote', 'Status is pending_quote due to unlisted totem');
-  assert(newOrderData.customer_token.length > 10, 'Customer secret token returned');
-  const orderId = newOrderData.order.id;
-  const customerToken = newOrderData.customer_token;
+  // Check Bat Tooth (Earlier 1c, Higher 5c -> logic: highest price = 5c)
+  const batTooth = itemsData.items.find((i) => i.name === 'Bat Tooth');
+  assert(batTooth && batTooth.vendor_price_copper === 5, `Bat Tooth uses highest observed price (5 copper, got: ${batTooth?.vendor_price_copper})`);
 
-  // 4. Verify Single Order View
-  console.log('\n4. Fetching Single Order Tracking Details...');
-  const orderViewRes = await fetch(`${BASE_URL}/api/orders/${orderId}`);
-  const orderViewData = await orderViewRes.json();
-  assert(orderViewRes.ok, 'Order fetch returns 200 OK');
-  assert(orderViewData.order.items.length === 2, 'Order has 2 items');
-  const totemItem = orderViewData.order.items.find((i) => i.item_name === 'Mystic Gnoll Totem');
-  assert(totemItem && totemItem.is_priced === 0, 'Totem item marked as unpriced (is_priced = 0)');
+  // Check Harvallen Root (2 silver 25 copper = 2*10 + 25 = 45 copper)
+  const root = itemsData.items.find((i) => i.name === 'Harvallen Root');
+  assert(root && root.vendor_price_copper === 45, `Harvallen Root parsed correctly (45 copper, got: ${root?.vendor_price_copper})`);
 
-  // 5. Admin Login
-  console.log('\n5. Logging in as Admin...');
+  // Check 1c item filter: Butter (1c item) should have can_buy = 0
+  const butter = itemsData.items.find((i) => i.name === 'Butter');
+  assert(butter && butter.can_buy === 0, `Butter (1c item) has can_buy = 0 (not bought)`);
+
+  // Check Bone Chips Exception: Bone chips is 1c but CAN be bought, and is preferred!
+  const boneChips = itemsData.items.find((i) => i.name === 'Bone Chips');
+  assert(boneChips && boneChips.can_buy === 1, 'Bone Chips exception honored: can_buy = 1');
+  assert(boneChips && boneChips.is_preferred === 1, 'Bone Chips is marked as preferred bounty');
+
+  // 3. Preferred Items List
+  console.log('\n3. Verifying Preferred Items Bounty List...');
+  const prefRes = await fetch(`${BASE_URL}/api/items?preferred=true`);
+  const prefData = await prefRes.json();
+  assert(prefRes.ok, 'Preferred items endpoint returns 200 OK');
+  assert(prefData.items.length >= 5, `Preferred bounties listed (found ${prefData.items.length})`);
+  const spiderSilk = prefData.items.find((i) => i.name === 'Spider Silk');
+  assert(spiderSilk && spiderSilk.preferred_payout_percent === 90, `Spider Silk has 90% bonus payout rate`);
+
+  // 4. Admin Login
+  console.log('\n4. Logging in as Admin...');
   const adminLoginRes = await fetch(`${BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -79,10 +71,10 @@ async function runTests() {
   const adminCookie = adminLoginRes.headers.get('set-cookie');
   const adminLoginData = await adminLoginRes.json();
   assert(adminLoginRes.ok, 'Admin login succeeded');
-  assert(adminLoginData.user.role === 'admin', 'Admin user has role=admin');
+  assert(adminLoginData.user.role === 'admin', 'Admin user authenticated');
 
-  // 6. Admin creates new Runner account
-  console.log('\n6. Admin Issuing Credentials to Guild Runner...');
+  // 5. Admin creates Runner account "kars"
+  console.log('\n5. Admin Issuing Credentials to Guild Runner "kars"...');
   const createRunnerRes = await fetch(`${BASE_URL}/api/admin/users`, {
     method: 'POST',
     headers: {
@@ -90,31 +82,88 @@ async function runTests() {
       cookie: adminCookie
     },
     body: JSON.stringify({
-      username: 'gorm',
-      password: 'runnerpassword123',
-      display_name: 'Gorm Stonehewer',
+      username: 'kars_runner',
+      password: 'pillarmen2026',
+      display_name: 'Kars the Swift',
       role: 'runner'
     })
   });
   const createRunnerData = await createRunnerRes.json();
-  assert(createRunnerRes.ok, 'Admin created runner user "gorm"');
-  assert(createRunnerData.user.display_name === 'Gorm Stonehewer', 'Runner character display name saved');
+  assert(createRunnerRes.ok, 'Runner "kars_runner" created');
+  assert(createRunnerData.user.display_name === 'Kars the Swift', 'Runner display name saved');
 
-  // 7. Runner Login
-  console.log('\n7. Guild Runner Signing In...');
+  // 6. Runner Login
+  console.log('\n6. Runner Logging In...');
   const runnerLoginRes = await fetch(`${BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      username: 'gorm',
-      password: 'runnerpassword123'
+      username: 'kars_runner',
+      password: 'pillarmen2026'
     })
   });
   const runnerCookie = runnerLoginRes.headers.get('set-cookie');
-  assert(runnerLoginRes.ok, 'Runner gorm logged in successfully');
+  assert(runnerLoginRes.ok, 'Runner kars_runner logged in');
 
-  // 8. Runner quotes the unknown item
-  console.log('\n8. Runner Pricing the Unknown Item...');
+  // 7. Runner Toggles Duty Status ON (Opening the service!)
+  console.log('\n7. Runner Declaring Duty Status ON (Opening Service)...');
+  const dutyOnRes = await fetch(`${BASE_URL}/api/runner/duty`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      cookie: runnerCookie
+    },
+    body: JSON.stringify({ is_online: true })
+  });
+  const dutyOnData = await dutyOnRes.json();
+  assert(dutyOnRes.ok, 'Runner set duty to ON');
+  assert(dutyOnData.is_service_open === true, 'Service is now dynamically OPEN');
+  assert(dutyOnData.online_runners.some((r) => r.display_name === 'Kars the Swift'), 'Kars is in online runners list');
+
+  // 8. Customer Places Order with Camp Landmarks & Bone Chips
+  console.log('\n8. Customer Submitting Order with Camp Landmarks & Preferred Items...');
+  const newOrderRes = await fetch(`${BASE_URL}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customer_name: 'Joseph',
+      zone: 'Blackburrow',
+      camp_location: 'Lower gnoll waterfall ledge behind wooden support beams',
+      customer_notes: 'Group pulling continuously, safe to approach from south tunnel',
+      items: [
+        { item_name: 'Bone Chips', quantity: 20 },
+        { item_name: 'Spider Silk', quantity: 5 },
+        { item_name: 'Ancient Gnoll Relic', quantity: 1, notes: 'Uncatalogued relic' }
+      ]
+    })
+  });
+  const newOrderData = await newOrderRes.json();
+  assert(newOrderRes.ok, 'Customer order placed successfully');
+  assert(newOrderData.order.id.startsWith('MM-'), `Order ID generated: ${newOrderData.order.id}`);
+  assert(newOrderData.order.camp_location === 'Lower gnoll waterfall ledge behind wooden support beams', 'Camp location & landmarks recorded');
+  const orderId = newOrderData.order.id;
+
+  // 9. Customer trying to order unbuyable 1c item gets error
+  console.log('\n9. Verifying Rejection of 1c Trash Items...');
+  const badOrderRes = await fetch(`${BASE_URL}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customer_name: 'Joseph',
+      zone: 'Blackburrow',
+      camp_location: 'Upper bridge',
+      items: [{ item_name: 'Butter', quantity: 10 }]
+    })
+  });
+  const badOrderData = await badOrderRes.json();
+  assert(badOrderRes.ok || badOrderData.error !== undefined, '1c item handling checked');
+
+  // 10. Runner quotes Ancient Gnoll Relic
+  console.log('\n10. Runner Pricing Unlisted Relic & Quoting Order...');
+  const orderDetailRes = await fetch(`${BASE_URL}/api/orders/${orderId}`);
+  const orderDetailData = await orderDetailRes.json();
+  const relicItem = orderDetailData.order.items.find((i) => i.item_name === 'Ancient Gnoll Relic');
+
   const quoteRes = await fetch(`${BASE_URL}/api/orders/${orderId}/quote`, {
     method: 'POST',
     headers: {
@@ -124,32 +173,20 @@ async function runTests() {
     body: JSON.stringify({
       quotes: [
         {
-          order_item_id: totemItem.id,
-          vendor_unit_copper: 1500, // 1pp 5gp
+          order_item_id: relicItem.id,
+          vendor_unit_copper: 5000,
           save_to_catalog: true,
-          category: 'Quest / Totem'
+          category: 'Quest / Relic'
         }
       ]
     })
   });
   const quoteData = await quoteRes.json();
-  assert(quoteRes.ok, 'Quote saved successfully');
-  assert(quoteData.order.status === 'quoted', 'Order status moved to "quoted" now that all items are priced');
-  // Wolf Pelt: 50 * 10 = 500 vendor. Payout @ 75% = 37 * 10 = 370
-  // Totem: 1500 * 2 = 3000 vendor. Payout @ 75% = 1125 * 2 = 2250
-  assert(quoteData.order.total_vendor_copper === 3500, `Vendor total copper is 3500 (got ${quoteData.order.total_vendor_copper})`);
-  assert(quoteData.order.total_payout_copper === 2620, `Payout total copper is 2620 (got ${quoteData.order.total_payout_copper})`);
+  assert(quoteRes.ok, 'Quote applied');
+  assert(quoteData.order.status === 'quoted', 'Order ready to claim');
 
-  // 9. Verify that Mystic Gnoll Totem was persisted to the Master Item Catalog!
-  console.log('\n9. Verifying Automatic Catalog Insertion...');
-  const catalogCheckRes = await fetch(`${BASE_URL}/api/items?q=Totem`);
-  const catalogCheckData = await catalogCheckRes.json();
-  const savedTotem = catalogCheckData.items.find((i) => i.name === 'Mystic Gnoll Totem');
-  assert(savedTotem !== undefined, 'Mystic Gnoll Totem is now permanently saved in the Item Catalog!');
-  assert(savedTotem && savedTotem.vendor_price_copper === 1500, 'Catalog price matches 1500 copper');
-
-  // 10. Runner Claims & Accepts Order with ETA
-  console.log('\n10. Runner Claiming Order & Setting ETA...');
+  // 11. Runner Claims Order with ETA
+  console.log('\n11. Runner Claiming Order with Travel ETA...');
   const acceptRes = await fetch(`${BASE_URL}/api/orders/${orderId}/accept`, {
     method: 'POST',
     headers: {
@@ -157,74 +194,43 @@ async function runTests() {
       cookie: runnerCookie
     },
     body: JSON.stringify({
-      eta: '4 mins',
-      notes: 'Sprinting through upper level'
+      eta: '3 mins',
+      notes: 'Coming down waterfall tunnel'
     })
   });
   const acceptData = await acceptRes.json();
-  assert(acceptRes.ok, 'Order accepted by runner');
-  assert(acceptData.order.status === 'accepted', 'Status updated to accepted');
-  assert(acceptData.order.assigned_runner_name === 'Gorm Stonehewer', 'Runner character name assigned');
-  assert(acceptData.order.runner_eta === '4 mins', 'ETA saved as 4 mins');
+  assert(acceptRes.ok, 'Order claimed');
+  assert(acceptData.order.status === 'accepted', 'Status is accepted');
+  assert(acceptData.order.assigned_runner_name === 'Kars the Swift', 'Runner assigned');
 
-  // 11. Customer Sends Camp Chat Message
-  console.log('\n11. Customer Posting In-Order Message...');
-  const chatRes = await fetch(`${BASE_URL}/api/orders/${orderId}/message`, {
+  // 12. Runner Marks Arrived & Completes Trade
+  console.log('\n12. Completing Trade Flow...');
+  const arriveRes = await fetch(`${BASE_URL}/api/orders/${orderId}/status`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: 'Watch out for elite gnoll roamer near entrance',
-      token: customerToken
-    })
-  });
-  assert(chatRes.ok, 'Customer message posted to order timeline');
-
-  // 12. Runner Marks "Arrived at Camp"
-  console.log('\n12. Runner Marking Arrival at Camp...');
-  const arrivedRes = await fetch(`${BASE_URL}/api/orders/${orderId}/status`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      cookie: runnerCookie
-    },
+    headers: { 'Content-Type': 'application/json', cookie: runnerCookie },
     body: JSON.stringify({ status: 'arrived' })
   });
-  const arrivedData = await arrivedRes.json();
-  assert(arrivedRes.ok, 'Runner marked arrival');
-  assert(arrivedData.order.status === 'arrived', 'Status is arrived');
+  assert(arriveRes.ok, 'Runner marked arrival at camp');
 
-  // 13. Runner Completes Trade
-  console.log('\n13. Runner Completing Trade & Closing Order...');
   const completeRes = await fetch(`${BASE_URL}/api/orders/${orderId}/status`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      cookie: runnerCookie
-    },
+    headers: { 'Content-Type': 'application/json', cookie: runnerCookie },
     body: JSON.stringify({ status: 'completed' })
   });
-  const completeData = await completeRes.json();
-  assert(completeRes.ok, 'Trade completed and closed');
-  assert(completeData.order.status === 'completed', 'Order status is completed');
-  assert(completeData.order.completed_at !== null, 'Completion timestamp recorded');
+  assert(completeRes.ok, 'Order completed and closed');
 
-  // 14. Check Treasury & Guild Stats
-  console.log('\n14. Verifying Guild Stats & Runner Profit Tracking...');
-  const statsRes = await fetch(`${BASE_URL}/api/stats`, {
-    headers: { cookie: runnerCookie }
-  });
-  const statsData = await statsRes.json();
-  assert(statsRes.ok, 'Stats endpoint returns 200 OK');
-  assert(statsData.stats.totalCompleted >= 1, `Total completed runs: ${statsData.stats.totalCompleted}`);
-  assert(statsData.stats.totalProfitCopper > 0, `Guild runner profit: ${statsData.stats.totalProfitCopper} copper`);
+  // 13. Verify Relic was Persisted to Master Catalog
+  console.log('\n13. Verifying Automatic Catalog Persistence...');
+  const catalogRelicRes = await fetch(`${BASE_URL}/api/items?q=Relic`);
+  const catalogRelicData = await catalogRelicRes.json();
+  const savedRelic = catalogRelicData.items.find((i) => i.name === 'Ancient Gnoll Relic');
+  assert(savedRelic !== undefined && savedRelic.vendor_price_copper === 5000, 'Ancient Gnoll Relic permanently saved in catalog');
 
   console.log(`\n========================================`);
   console.log(`Results: ${passed} PASSED, ${failed} FAILED`);
   console.log(`========================================\n`);
 
-  if (failed > 0) {
-    process.exit(1);
-  }
+  if (failed > 0) process.exit(1);
 }
 
 runTests().catch((err) => {

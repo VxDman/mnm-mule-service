@@ -20,7 +20,8 @@ import {
   AlertTriangle,
   XCircle,
   RefreshCw,
-  Star
+  Star,
+  Globe
 } from 'lucide-react';
 import { CoinDisplay } from '@/components/CoinDisplay';
 import { Order, OrderStatus } from '@/types';
@@ -29,41 +30,37 @@ interface OrderPageProps {
   params: Promise<{ id: string }>;
 }
 
-function OrderTrackingContent({ orderId }: { orderId: string }) {
+function OrderContent({ orderId }: { orderId: string }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [customerToken, setCustomerToken] = useState<string | null>(null);
-
-  // Interaction states
+  const [customerToken, setCustomerToken] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedTell, setCopiedTell] = useState(false);
+
+  // Chat input
   const [chatMessage, setChatMessage] = useState('');
   const [isSendingMsg, setIsSendingMsg] = useState(false);
-  const [isCancelling, setIsCancelling] = useState(false);
-  const [cancelModal, setCancelModal] = useState(false);
 
-  // Fetch order data
-  const fetchOrder = useCallback(async (isPolling = false) => {
+  // Cancel order modal
+  const [cancelModal, setCancelModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const fetchOrder = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+      const res = await fetch(`/api/orders/${orderId}`);
       if (!res.ok) {
-        if (res.status === 404) {
-          setError('Order not found. Please check your order code.');
-        } else {
-          setError('Failed to load order details.');
-        }
-        setLoading(false);
-        return;
+        if (res.status === 404) throw new Error('Order not found');
+        throw new Error('Failed to load order');
       }
       const data = await res.json();
       setOrder(data.order);
-      setLoading(false);
-    } catch {
-      if (!isPolling) {
-        setError('Connection error loading order.');
-        setLoading(false);
-      }
+      setError('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error loading order');
+    } finally {
+      if (!quiet) setLoading(false);
     }
   }, [orderId]);
 
@@ -93,7 +90,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
 
   const handleCopyTell = (runnerName: string) => {
     if (typeof window !== 'undefined') {
-      const tellText = `/tell ${runnerName} Hey, I'm at ${order?.camp_location || 'camp'} (${order?.zone})`;
+      const tellText = `/tell ${runnerName} Hey, I'm at ${order?.camp_location || 'camp'} (${order?.zone} - Tilustra)`;
       navigator.clipboard.writeText(tellText);
       setCopiedTell(true);
       setTimeout(() => setCopiedTell(false), 2000);
@@ -134,7 +131,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
         body: JSON.stringify({
           status: 'cancelled',
           token: customerToken,
-          message: 'Cancelled by customer'
+          message: 'Customer cancelled the order from camp.'
         })
       });
       if (res.ok) {
@@ -151,7 +148,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
         <div className="text-center space-y-3">
           <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
-          <p className="text-sm text-zinc-400">Loading Order #{orderId}...</p>
+          <p className="text-sm text-zinc-400">Loading Order {orderId}...</p>
         </div>
       </div>
     );
@@ -160,10 +157,14 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
   if (error || !order) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 max-w-md w-full text-center space-y-4">
+          <div className="w-12 h-12 rounded-xl bg-rose-950/60 border border-rose-600/40 text-rose-400 flex items-center justify-center mx-auto">
+            <XCircle className="w-6 h-6" />
+          </div>
           <h2 className="text-xl font-bold text-white">Order Not Found</h2>
-          <p className="text-xs text-zinc-400">{error || 'Unable to locate order.'}</p>
+          <p className="text-xs text-zinc-400">
+            Could not find an order with ID <span className="font-mono text-amber-300 font-bold">{orderId}</span>. Please verify the ID or request a new run.
+          </p>
           <div className="pt-2">
             <Link
               href="/"
@@ -240,6 +241,10 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                 >
                   {order.status.replace('_', ' ')}
                 </span>
+                <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-950/80 border border-blue-500/40 text-blue-300">
+                  <Globe className="w-3 h-3 text-blue-400" />
+                  Tilustra (NA East 2)
+                </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
                 Character: <span className="text-amber-300 font-semibold">{order.customer_name}</span> • Placed {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -279,7 +284,7 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
               <div>
                 <h3 className="text-base font-bold text-white">Your Courier Has Arrived at Camp!</h3>
                 <p className="text-xs text-cyan-200">
-                  Runner <span className="font-bold underline">{order.assigned_runner_name}</span> is standing at your camp. Please open trade in-game.
+                  Runner <span className="font-bold underline">{order.assigned_runner_name}</span> is standing at your camp on Tilustra. Please open trade in-game.
                 </p>
               </div>
             </div>
@@ -298,20 +303,28 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
         {order.status === 'accepted' && (
           <div className="bg-amber-950/50 border border-amber-600/50 rounded-2xl p-5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-amber-900/60 border border-amber-500 flex items-center justify-center text-amber-300">
-                <Clock className="w-6 h-6 text-amber-400" />
+              <div className="w-12 h-12 rounded-xl bg-amber-900/80 border border-amber-400 flex items-center justify-center text-amber-300">
+                <ShieldCheck className="w-6 h-6 text-amber-400" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Courier Dispatched & En Route!</h3>
-                <p className="text-xs text-amber-200">
-                  <span className="font-semibold text-white">{order.assigned_runner_name}</span> is running to your camp location. Estimated Travel Time: <span className="font-bold underline">{order.runner_eta || 'En route'}</span>.
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-white">
+                    Runner {order.assigned_runner_name} Dispatched!
+                  </h3>
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                    ETA: {order.runner_eta || 'En Route'}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-300 mt-0.5">
+                  Your courier has left town with pouch full of coins. Hold your camp and watch for incoming tells.
                 </p>
               </div>
             </div>
+
             {order.assigned_runner_name && (
               <button
                 onClick={() => handleCopyTell(order.assigned_runner_name!)}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold flex items-center gap-1.5 shadow-md"
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold flex items-center gap-1.5 shadow-md shrink-0"
               >
                 {copiedTell ? <Check className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
                 <span>{copiedTell ? 'Whisper Copied!' : `Whisper /tell ${order.assigned_runner_name}`}</span>
@@ -320,50 +333,39 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
           </div>
         )}
 
-        {order.status === 'completed' && (
-          <div className="bg-emerald-950/50 border border-emerald-600/50 rounded-2xl p-5 shadow-xl flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-900/60 border border-emerald-500 flex items-center justify-center text-emerald-300">
-              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">Trade Completed Successfully!</h3>
-              <p className="text-xs text-emerald-200">
-                Loot sold and coins delivered. Thank you for using The Pillar Men Trade Service! Good luck on your camp!
-              </p>
-            </div>
+        {order.status === 'pending_quote' && (
+          <div className="bg-zinc-900 border border-amber-600/40 rounded-2xl p-4 flex items-center gap-3 text-xs text-amber-300">
+            <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
+            <span>
+              Your order contains uncataloged items. A Pillar Men runner will review and quote your loot shortly.
+            </span>
           </div>
         )}
 
-        {order.status === 'cancelled' && (
-          <div className="bg-rose-950/50 border border-rose-600/50 rounded-2xl p-5 shadow-xl flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-rose-900/60 border border-rose-500 flex items-center justify-center text-rose-300">
-              <XCircle className="w-6 h-6 text-rose-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">Order Cancelled</h3>
-              <p className="text-xs text-rose-200">This order has been cancelled.</p>
-            </div>
-          </div>
-        )}
-
-        {/* Visual Progress Stepper */}
+        {/* Stepper Progress Visualizer */}
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 shadow-xl">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-6">
-            Courier Dispatch Progress
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 relative">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {steps.map((st, idx) => {
               const state = getStepStatus(st.key);
+
               return (
-                <div key={st.key} className="flex flex-col items-start sm:items-center text-left sm:text-center relative">
+                <div
+                  key={st.key}
+                  className={`flex flex-col items-center text-center p-3 rounded-xl border transition-all ${
+                    state === 'current'
+                      ? 'bg-amber-950/40 border-amber-500/60 shadow-lg shadow-amber-500/10'
+                      : state === 'done'
+                      ? 'bg-zinc-950 border-emerald-500/30'
+                      : 'bg-zinc-950/60 border-zinc-800/80 opacity-60'
+                  }`}
+                >
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs mb-2 transition-all ${
-                      state === 'done'
-                        ? 'bg-emerald-950 border-2 border-emerald-500 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
-                        : state === 'current'
-                        ? 'bg-amber-950 border-2 border-amber-400 text-amber-300 animate-pulse shadow-[0_0_12px_rgba(245,158,11,0.5)]'
-                        : 'bg-zinc-800 border-2 border-zinc-700 text-zinc-500'
+                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-2 ${
+                      state === 'current'
+                        ? 'bg-amber-500 text-zinc-950 animate-pulse'
+                        : state === 'done'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                        : 'bg-zinc-800 text-zinc-500'
                     }`}
                   >
                     {state === 'done' ? (
@@ -398,6 +400,13 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
 
               <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs">
+                  <span className="text-zinc-400">Server:</span>
+                  <span className="font-semibold text-blue-300 flex items-center gap-1">
+                    <Globe className="w-3.5 h-3.5 text-blue-400" />
+                    Tilustra (NA East 2)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
                   <span className="text-zinc-400">Zone:</span>
                   <span className="font-semibold text-white">{order.zone}</span>
                 </div>
@@ -428,159 +437,111 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
                 </span>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-zinc-800 text-zinc-400 pb-2">
-                      <th className="pb-2 font-medium">Item</th>
-                      <th className="pb-2 font-medium text-center">Qty</th>
-                      <th className="pb-2 font-medium text-right">Vendor Value</th>
-                      <th className="pb-2 font-medium text-right">Your Payout</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/60">
-                    {order.items?.map((it) => (
-                      <tr key={it.id} className="hover:bg-zinc-800/30">
-                        <td className="py-3">
-                          <span className="font-semibold text-zinc-200">{it.item_name}</span>
-                          {it.is_preferred === 1 && (
-                            <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-950/80 border border-amber-500/50 text-amber-300 font-bold">
-                              <Star className="w-3 h-3 fill-amber-300" />
-                              Bounty
-                            </span>
-                          )}
-                          {!it.is_priced && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-amber-950/60 border border-amber-600/40 text-amber-400">
-                              Awaiting Runner Quote
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 text-center font-mono text-zinc-300">
-                          {it.quantity}
-                        </td>
-                        <td className="py-3 text-right">
-                          {it.vendor_unit_copper > 0 ? (
-                            <CoinDisplay copper={it.vendor_unit_copper * it.quantity} size="sm" />
-                          ) : (
-                            <span className="text-zinc-500">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 text-right">
-                          {it.payout_unit_copper > 0 ? (
-                            <CoinDisplay copper={it.payout_unit_copper * it.quantity} size="sm" />
-                          ) : (
-                            <span className="text-amber-400/80 text-[11px] italic">Pending quote</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Order Totals Banner */}
-              <div className="mt-4 pt-4 border-t border-zinc-800 bg-zinc-950/60 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-xs text-zinc-400">
-                  <span>Total Town Vendor Sell Value: </span>
-                  <CoinDisplay copper={order.total_vendor_copper} size="sm" className="ml-1 inline-flex" />
+              <div className="divide-y divide-zinc-800/80 border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
+                <div className="grid grid-cols-12 px-4 py-2.5 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider bg-zinc-900/80">
+                  <span className="col-span-6 sm:col-span-7">Item Description</span>
+                  <span className="col-span-2 text-center">Qty</span>
+                  <span className="col-span-4 sm:col-span-3 text-right">Payout</span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-zinc-300">Total Coins to Receive:</span>
-                  <CoinDisplay copper={order.total_payout_copper} size="lg" showZero />
+                {order.items?.map((it) => (
+                  <div key={it.id} className="grid grid-cols-12 px-4 py-3 text-xs items-center hover:bg-zinc-900/40">
+                    <div className="col-span-6 sm:col-span-7">
+                      <div className="font-medium text-white flex items-center gap-1.5">
+                        {it.is_preferred === 1 && (
+                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
+                        )}
+                        <span>{it.item_name}</span>
+                      </div>
+                      {it.notes && (
+                        <div className="text-[10px] text-zinc-500">{it.notes}</div>
+                      )}
+                    </div>
+
+                    <div className="col-span-2 text-center font-mono font-bold text-zinc-300">
+                      x{it.quantity}
+                    </div>
+
+                    <div className="col-span-4 sm:col-span-3 text-right">
+                      {it.is_priced ? (
+                        <div>
+                          <CoinDisplay copper={it.payout_unit_copper * it.quantity} size="sm" />
+                          <div className="text-[9px] text-zinc-500 font-mono">
+                            ({it.payout_unit_copper}c / ea)
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-amber-400 font-medium italic">
+                          Awaiting runner quote
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="p-4 bg-zinc-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-zinc-800">
+                  <div className="text-xs text-zinc-400">
+                    <div>Gross Vendor Value: <CoinDisplay copper={order.total_vendor_copper} compact size="sm" /></div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Total Payout Cash:
+                    </span>
+                    <CoinDisplay copper={order.total_payout_copper} size="lg" />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Col: Courier Dispatch Card & Live Timeline / Chat */}
+          {/* Right Col: Timeline & Camp Chat */}
           <div className="space-y-6">
-            {/* Runner Card */}
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                <User className="w-4 h-4 text-cyan-400" />
-                Assigned Courier
-              </h3>
-
-              {order.assigned_runner_name ? (
-                <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600 to-amber-900 border border-amber-500/40 flex items-center justify-center font-bold text-sm text-white">
-                      {order.assigned_runner_name.slice(0, 1)}
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold text-white">{order.assigned_runner_name}</div>
-                      <div className="text-[11px] text-amber-400 font-mono">The Pillar Men Courier</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-800/80">
-                    <span className="text-zinc-400">ETA / Transit:</span>
-                    <span className="font-semibold text-emerald-400 font-mono">{order.runner_eta || 'En route'}</span>
-                  </div>
-
-                  <button
-                    onClick={() => handleCopyTell(order.assigned_runner_name!)}
-                    className="w-full mt-2 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-medium text-zinc-200 flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    {copiedTell ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <MessageSquare className="w-3.5 h-3.5 text-zinc-400" />}
-                    <span>{copiedTell ? 'Whisper Copied!' : `/tell ${order.assigned_runner_name}`}</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-center space-y-2">
-                  <Clock className="w-8 h-8 text-zinc-600 mx-auto" />
-                  <p className="text-xs text-zinc-400 font-medium">Awaiting Courier Claim</p>
-                  <p className="text-[11px] text-zinc-500">
-                    Orders are broadcast to online runners. A runner will claim this shortly!
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Live Timeline & Camp Chat */}
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 shadow-xl flex flex-col h-[400px]">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-1.5">
-                <MessageSquare className="w-4 h-4 text-amber-400" />
-                Live Dispatch Log & Updates
-              </h3>
-
-              {/* Event Log Scroll Area */}
-              <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
-                {order.events && order.events.length > 0 ? (
-                  order.events.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-2.5 space-y-1"
-                    >
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-semibold text-amber-400">{ev.actor_name}</span>
-                        <span className="text-zinc-500 font-mono">
-                          {new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <p className="text-zinc-300 leading-relaxed text-[11px]">{ev.message}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center text-zinc-500 py-8 text-xs">No updates yet.</p>
-                )}
+            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 shadow-xl flex flex-col h-[520px]">
+              <div className="border-b border-zinc-800 pb-3 mb-3 flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4 text-cyan-400" />
+                  Camp Dispatch Log
+                </h3>
+                <span className="text-[10px] text-zinc-500">Live Updates</span>
               </div>
 
-              {/* Chat Input for Customer */}
+              {/* Chat Message List */}
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 text-xs">
+                {order.events?.map((evt) => (
+                  <div
+                    key={evt.id}
+                    className={`p-2.5 rounded-xl border ${
+                      evt.event_type.startsWith('status_')
+                        ? 'bg-amber-950/20 border-amber-600/30 text-amber-200'
+                        : evt.event_type === 'chat_message'
+                        ? 'bg-zinc-950 border-zinc-800 text-zinc-200'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1 text-[10px] text-zinc-400 font-mono">
+                      <span className="font-bold text-amber-400">{evt.actor_name}</span>
+                      <span>{new Date(evt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <p className="text-zinc-200 leading-relaxed">{evt.message}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Chat Input */}
               {order.status !== 'completed' && order.status !== 'cancelled' && (
                 <form onSubmit={handleSendMessage} className="mt-3 pt-3 border-t border-zinc-800 flex gap-2">
                   <input
                     type="text"
-                    placeholder="Send camp update (e.g. repop at camp)..."
+                    placeholder="Send message to courier..."
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
-                    className="flex-1 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="flex-1 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   />
                   <button
                     type="submit"
                     disabled={isSendingMsg || !chatMessage.trim()}
-                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-zinc-950 text-xs font-bold disabled:opacity-50 flex items-center justify-center"
+                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold transition-colors disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
                   </button>
@@ -591,32 +552,32 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
         </div>
       </main>
 
-      {/* Cancel Confirmation Modal */}
+      {/* Cancel Modal */}
       {cancelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-w-sm w-full p-6 text-zinc-100 space-y-4">
-            <AlertTriangle className="w-10 h-10 text-rose-400 mx-auto" />
-            <div className="text-center">
-              <h3 className="text-base font-bold text-white">Cancel Mule Order?</h3>
-              <p className="text-xs text-zinc-400 mt-1">
-                Are you sure you want to cancel this order? The courier will be notified not to make the trek to your camp.
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-3 pt-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400" />
+              Cancel This Order?
+            </h3>
+            <p className="text-xs text-zinc-400">
+              Are you sure you want to cancel Order <span className="font-mono text-amber-400">{order.id}</span>? Our couriers will be informed that you no longer need loot pickup.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setCancelModal(false)}
-                className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-medium"
+                className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-medium"
               >
-                Keep Order
+                No, Keep Order
               </button>
               <button
                 type="button"
-                disabled={isCancelling}
                 onClick={handleCancelOrder}
-                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
+                disabled={isCancelling}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors disabled:opacity-50"
               >
-                {isCancelling ? 'Cancelling...' : 'Yes, Cancel'}
+                {isCancelling ? 'Cancelling...' : 'Yes, Cancel Order'}
               </button>
             </div>
           </div>
@@ -627,16 +588,15 @@ function OrderTrackingContent({ orderId }: { orderId: string }) {
 }
 
 export default function OrderTrackingPage({ params }: OrderPageProps) {
-  const { id } = use(params);
+  const unwrappedParams = use(params);
+
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-          <RefreshCw className="w-8 h-8 text-amber-400 animate-spin" />
-        </div>
-      }
-    >
-      <OrderTrackingContent orderId={id} />
+    <Suspense fallback={
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
+        <RefreshCw className="w-8 h-8 text-amber-400 animate-spin" />
+      </div>
+    }>
+      <OrderContent orderId={unwrappedParams.id} />
     </Suspense>
   );
 }

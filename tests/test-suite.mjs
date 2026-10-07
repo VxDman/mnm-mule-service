@@ -24,6 +24,19 @@ async function runTests() {
   assert(settingsData.settings.guild_name === 'The Pillar Men', `Guild name is "The Pillar Men" (got: ${settingsData.settings.guild_name})`);
   assert(settingsData.settings.hours_of_operation.length > 0, `Hours of operation is set: ${settingsData.settings.hours_of_operation}`);
   assert(settingsData.settings.guild_tag === undefined, 'No guild tag present');
+  assert(settingsData.settings.server_name === "Tilustra (NA East 2)", `Server is Tilustra (NA East 2) (got: ${settingsData.settings.server_name})`);
+
+  // Check Standard Equipment Tiers
+  console.log("\n1b. Verifying Standard Equipment Tiers (T1, T2, T3)...");
+  const tierRes = await fetch(`${BASE_URL}/api/items?tier=true`);
+  const tierData = await tierRes.json();
+  assert(tierRes.ok, "Tier items endpoint returns 200 OK");
+  assert(tierData.items.length >= 10, `Tier items returned (found ${tierData.items.length})`);
+  const t2Chain = tierData.items.find((i) => i.name === "T2 Chain Armor");
+  assert(t2Chain && t2Chain.vendor_price_copper === 35, `T2 Chain Armor standard price is 35 copper (1sp 25c, got: ${t2Chain?.vendor_price_copper})`);
+  const t1Rusty = tierData.items.find((i) => i.name === "T1 Rusty 1H Weapon");
+  assert(t1Rusty && t1Rusty.vendor_price_copper === 13, `T1 Rusty 1H Weapon standard price is 13 copper (got: ${t1Rusty?.vendor_price_copper})`);
+
 
   // 2. Check Google Sheet Ingestion & Price Logic
   console.log('\n2. Verifying Google Sheet Item Pricing & 1c Filtering...');
@@ -75,6 +88,7 @@ async function runTests() {
 
   // 5. Admin creates Runner account "kars"
   console.log('\n5. Admin Issuing Credentials to Guild Runner "kars"...');
+  const runnerUser = "kars_" + Date.now().toString().slice(-4);
   const createRunnerRes = await fetch(`${BASE_URL}/api/admin/users`, {
     method: 'POST',
     headers: {
@@ -82,14 +96,14 @@ async function runTests() {
       cookie: adminCookie
     },
     body: JSON.stringify({
-      username: 'kars_runner',
+      username: runnerUser,
       password: 'pillarmen2026',
       display_name: 'Kars the Swift',
       role: 'runner'
     })
   });
   const createRunnerData = await createRunnerRes.json();
-  assert(createRunnerRes.ok, 'Runner "kars_runner" created');
+  assert(createRunnerRes.ok, `Runner "${runnerUser}" created`);
   assert(createRunnerData.user.display_name === 'Kars the Swift', 'Runner display name saved');
 
   // 6. Runner Login
@@ -98,7 +112,7 @@ async function runTests() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      username: 'kars_runner',
+      username: runnerUser,
       password: 'pillarmen2026'
     })
   });

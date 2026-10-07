@@ -16,7 +16,8 @@ import {
   Coins,
   Radio,
   CheckCircle2,
-  Clock
+  Clock,
+  Globe
 } from 'lucide-react';
 import { User, AppSettings } from '@/types';
 
@@ -102,6 +103,7 @@ export function Navbar() {
   };
 
   const guildName = settings?.guild_name || 'The Pillar Men';
+  const serverName = settings?.server_name || 'Tilustra (NA East 2)';
   const isOpen = settings?.is_service_open ?? false;
   const onlineRunnersCount = settings?.online_runners?.length || 0;
 
@@ -124,8 +126,14 @@ export function Navbar() {
                 </div>
               </Link>
 
+              {/* Server Name Prominent Badge */}
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-950/70 border border-blue-500/40 text-blue-300 shadow-sm">
+                <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span>Server: {serverName}</span>
+              </div>
+
               {/* Service Open/Closed Live Indicator */}
-              <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-zinc-800 text-xs">
+              <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-zinc-800 text-xs">
                 <span
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
                     isOpen
@@ -144,7 +152,7 @@ export function Navbar() {
               </div>
 
               {/* Main Nav Links */}
-              <nav className="hidden md:flex items-center gap-1 ml-4 text-sm">
+              <nav className="hidden md:flex items-center gap-1 ml-2 text-sm">
                 <Link
                   href="/"
                   className={`px-3 py-1.5 rounded-md transition-colors ${
@@ -248,112 +256,72 @@ export function Navbar() {
               {user ? (
                 <div className="flex items-center gap-3">
                   <div className="hidden sm:flex flex-col text-right">
-                    <span className="text-xs font-semibold text-zinc-200">{user.display_name}</span>
-                    <span className="text-[10px] text-amber-400 font-mono capitalize">
-                      {user.role === 'admin' ? 'Guild Leader' : 'Runner'}
-                    </span>
+                    <span className="text-xs font-bold text-white">{user.display_name}</span>
+                    <span className="text-[10px] text-zinc-400 capitalize">{user.role}</span>
                   </div>
                   <button
                     onClick={handleLogout}
-                    title="Sign Out"
-                    className="p-2 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-rose-300 hover:border-rose-900/50 hover:bg-rose-950/30 transition-colors"
+                    title="Log Out"
+                    className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowTrackModal(true)}
-                    className="md:hidden p-2 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
-                  <Link
-                    href="/login"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 text-zinc-200 hover:text-white text-xs font-medium transition-colors"
-                  >
-                    <LogIn className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Guild Login</span>
-                  </Link>
-                </div>
+                <Link
+                  href="/login"
+                  className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-medium text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Guild Login</span>
+                </Link>
               )}
             </div>
           </div>
         </div>
-
-        {/* Mobile Navigation bar */}
-        {user && (
-          <div className="md:hidden border-t border-zinc-800/80 px-4 py-2 bg-zinc-950/95 flex items-center justify-around text-xs">
-            <Link
-              href="/"
-              className={`p-1.5 ${pathname === '/' ? 'text-amber-400 font-bold' : 'text-zinc-400'}`}
-            >
-              Order
-            </Link>
-            <Link
-              href="/dashboard"
-              className={`p-1.5 ${pathname === '/dashboard' ? 'text-amber-400 font-bold' : 'text-zinc-400'}`}
-            >
-              Queue
-            </Link>
-            <Link
-              href="/items"
-              className={`p-1.5 ${pathname === '/items' ? 'text-amber-400 font-bold' : 'text-zinc-400'}`}
-            >
-              Prices
-            </Link>
-            {user.role === 'admin' && (
-              <Link
-                href="/admin"
-                className={`p-1.5 ${pathname === '/admin' ? 'text-amber-400 font-bold' : 'text-zinc-400'}`}
-              >
-                Admin
-              </Link>
-            )}
-          </div>
-        )}
       </header>
 
       {/* Track Order Modal */}
       {showTrackModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-w-md w-full p-6 text-zinc-100">
-            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-              <Search className="w-5 h-5 text-amber-400" />
-              Track Existing Order
-            </h3>
-            <p className="text-xs text-zinc-400 mb-4">
-              Enter your Order Code (e.g. <span className="font-mono text-amber-300">MM-4821</span>) to check courier status, quote updates, and arrival.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Search className="w-4 h-4 text-amber-400" />
+                Track In-Flight Order
+              </h3>
+              <button
+                onClick={() => setShowTrackModal(false)}
+                className="text-zinc-500 hover:text-zinc-300 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400">
+              Enter your Order ID (e.g. <span className="text-amber-400 font-mono">MM-1042</span>) to check status, runner ETA, or camp chat.
             </p>
-
             <form onSubmit={handleTrackSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Order Code</label>
-                <input
-                  type="text"
-                  autoFocus
-                  required
-                  placeholder="MM-XXXX"
-                  value={trackId}
-                  onChange={(e) => setTrackId(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2.5 text-sm font-mono text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <input
+                type="text"
+                placeholder="e.g. MM-2490"
+                value={trackId}
+                onChange={(e) => setTrackId(e.target.value)}
+                autoFocus
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-bold uppercase"
+              />
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowTrackModal(false)}
-                  className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-medium"
+                  className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-zinc-950 text-xs font-bold"
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md transition-colors"
                 >
-                  Find Order
+                  Track Order
                 </button>
               </div>
             </form>

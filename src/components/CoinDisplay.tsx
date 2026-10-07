@@ -6,11 +6,12 @@ import { copperToCoins } from '@/lib/currency';
 interface CoinDisplayProps {
   copper: number;
   size?: 'sm' | 'md' | 'lg';
+  compact?: boolean;
   showZero?: boolean;
   className?: string;
 }
 
-export function CoinDisplay({ copper, size = 'md', showZero = false, className = '' }: CoinDisplayProps) {
+export function CoinDisplay({ copper, size = 'md', compact = false, showZero = false, className = '' }: CoinDisplayProps) {
   const { pp, gp, sp, cp } = copperToCoins(copper);
 
   const sizeClasses = {
@@ -42,38 +43,38 @@ export function CoinDisplay({ copper, size = 'md', showZero = false, className =
   }
 
   return (
-    <div className={`inline-flex items-center flex-wrap ${sizeClasses.wrap} ${className}`}>
+    <span className={`inline-flex items-center flex-wrap ${sizeClasses.wrap} ${className}`}>
       {pp > 0 && (
-        <span className={`inline-flex items-center gap-1 bg-cyan-950/70 border border-cyan-500/40 text-cyan-200 shadow-sm ${sizeClasses.coin}`} title={`${pp} Platinum (${pp * 1000} Copper)`}>
-          <span className={`rounded-full bg-cyan-300 ring-1 ring-cyan-200/60 shadow-[0_0_6px_rgba(103,232,249,0.7)] ${sizeClasses.dot}`} />
-          <span>{pp.toLocaleString()}</span>
-          <span className="text-cyan-400/80 text-[10px] uppercase tracking-wider">pp</span>
+        <span className={`inline-flex items-center gap-1 bg-cyan-950/80 border border-cyan-500/50 text-cyan-200 shadow-sm ${sizeClasses.coin}`}>
+          <span className={`rounded-full bg-cyan-400 inline-block shadow-sm ${sizeClasses.dot}`} />
+          <span>{pp}</span>
+          <span className="text-cyan-400 font-bold text-[10px] uppercase">pp</span>
         </span>
       )}
 
-      {(gp > 0 || (pp > 0 && (sp > 0 || cp > 0))) && (
-        <span className={`inline-flex items-center gap-1 bg-amber-950/70 border border-amber-500/50 text-amber-200 shadow-sm ${sizeClasses.coin}`} title={`${gp} Gold (${gp * 100} Copper)`}>
-          <span className={`rounded-full bg-amber-400 ring-1 ring-amber-300/60 shadow-[0_0_6px_rgba(251,191,36,0.7)] ${sizeClasses.dot}`} />
+      {gp > 0 && (
+        <span className={`inline-flex items-center gap-1 bg-amber-950/80 border border-amber-500/50 text-amber-200 shadow-sm ${sizeClasses.coin}`}>
+          <span className={`rounded-full bg-amber-400 inline-block shadow-sm ${sizeClasses.dot}`} />
           <span>{gp}</span>
-          <span className="text-amber-400/80 text-[10px] uppercase tracking-wider">gp</span>
+          <span className="text-amber-400 font-bold text-[10px] uppercase">gp</span>
         </span>
       )}
 
-      {(sp > 0 || ((pp > 0 || gp > 0) && cp > 0)) && (
-        <span className={`inline-flex items-center gap-1 bg-slate-800/80 border border-slate-400/50 text-slate-200 shadow-sm ${sizeClasses.coin}`} title={`${sp} Silver (${sp * 10} Copper)`}>
-          <span className={`rounded-full bg-slate-300 ring-1 ring-slate-200/60 shadow-[0_0_5px_rgba(203,213,225,0.7)] ${sizeClasses.dot}`} />
+      {sp > 0 && (
+        <span className={`inline-flex items-center gap-1 bg-zinc-800 border border-zinc-600 text-zinc-200 shadow-sm ${sizeClasses.coin}`}>
+          <span className={`rounded-full bg-zinc-300 inline-block shadow-sm ${sizeClasses.dot}`} />
           <span>{sp}</span>
-          <span className="text-slate-400 text-[10px] uppercase tracking-wider">sp</span>
+          <span className="text-zinc-400 font-bold text-[10px] uppercase">sp</span>
         </span>
       )}
 
-      {(cp > 0 || (!pp && !gp && !sp)) && (
-        <span className={`inline-flex items-center gap-1 bg-orange-950/70 border border-orange-600/50 text-orange-200 shadow-sm ${sizeClasses.coin}`} title={`${cp} Copper`}>
-          <span className={`rounded-full bg-orange-500 ring-1 ring-orange-400/60 shadow-[0_0_5px_rgba(249,115,22,0.7)] ${sizeClasses.dot}`} />
+      {(cp > 0 || (!hasAny && showZero)) && (
+        <span className={`inline-flex items-center gap-1 bg-orange-950/80 border border-orange-700/60 text-orange-200 shadow-sm ${sizeClasses.coin}`}>
+          <span className={`rounded-full bg-amber-700 inline-block shadow-sm ${sizeClasses.dot}`} />
           <span>{cp}</span>
-          <span className="text-orange-400/80 text-[10px] uppercase tracking-wider">cp</span>
+          <span className="text-amber-600 font-bold text-[10px] uppercase">cp</span>
         </span>
       )}
-    </div>
+    </span>
   );
 }

@@ -18,7 +18,9 @@ import {
   Clock,
   Radio,
   Star,
-  Info
+  Info,
+  Globe,
+  Shield
 } from 'lucide-react';
 import { CoinDisplay } from '@/components/CoinDisplay';
 import { Item, AppSettings } from '@/types';
@@ -57,12 +59,14 @@ export default function OrderPage() {
   // Settings & Catalog
   const [settings, setSettings] = useState<AppSettings>({
     guild_name: 'The Pillar Men',
+    server_name: 'Tilustra (NA East 2)',
     hours_of_operation: 'Daily 6:00 PM - 2:00 AM EST (or whenever runners are on duty)',
     default_payout_percent: 75,
     motd: ''
   });
   const [catalogItems, setCatalogItems] = useState<Item[]>([]);
   const [preferredItems, setPreferredItems] = useState<Item[]>([]);
+  const [tierItems, setTierItems] = useState<Item[]>([]);
   const [recentOrders, setRecentOrders] = useState<string[]>([]);
 
   // Form state
@@ -90,7 +94,7 @@ export default function OrderPage() {
       .catch(() => {});
 
     // Preload item catalog for fast search
-    fetch('/api/items?limit=200')
+    fetch('/api/items?limit=500')
       .then((res) => res.json())
       .then((data) => {
         if (data.items) setCatalogItems(data.items);
@@ -102,6 +106,14 @@ export default function OrderPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.items) setPreferredItems(data.items);
+      })
+      .catch(() => {});
+
+    // Preload standard tier equipment items
+    fetch('/api/items?tier=true')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.items) setTierItems(data.items);
       })
       .catch(() => {});
 
@@ -120,10 +132,11 @@ export default function OrderPage() {
 
   // Filter items for autocomplete
   const filteredCatalog = searchQuery.trim() === ''
-    ? catalogItems.slice(0, 10)
+    ? catalogItems.slice(0, 12)
     : catalogItems.filter((it) =>
-        it.name.toLowerCase().includes(searchQuery.toLowerCase())
-      ).slice(0, 10);
+        it.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (it.notes && it.notes.toLowerCase().includes(searchQuery.toLowerCase()))
+      ).slice(0, 12);
 
   const handleSelectItem = (index: number, selectedItem: Item) => {
     const updated = [...items];
@@ -254,7 +267,7 @@ export default function OrderPage() {
           items: validItems.map((it) => ({
             item_name: it.item_name.trim(),
             quantity: it.quantity,
-            notes: it.notes || ''
+            notes: it.notes
           }))
         })
       });
@@ -264,6 +277,7 @@ export default function OrderPage() {
         throw new Error(data.error || 'Failed to submit order');
       }
 
+      // Save to localStorage for convenience
       try {
         localStorage.setItem('mule_customer_name', customerName.trim());
         const existing = JSON.parse(localStorage.getItem('mule_my_orders') || '[]');
@@ -282,6 +296,7 @@ export default function OrderPage() {
     }
   };
 
+  const serverName = settings.server_name || 'Tilustra (NA East 2)';
   const isOpen = settings.is_service_open ?? false;
   const onlineRunnersCount = settings.online_runners?.length || 0;
 
@@ -299,8 +314,14 @@ export default function OrderPage() {
       <section className="relative overflow-hidden border-b border-zinc-800/80 bg-gradient-to-b from-zinc-900 to-zinc-950 py-12 px-4 sm:px-6 lg:px-8">
         <div className="absolute inset-0 bg-[radial-gradient(#3f3f46_1px,transparent_1px)] [background-size:16px_16px] opacity-20 pointer-events-none" />
         <div className="max-w-4xl mx-auto relative z-10 text-center">
-          {/* Live Duty & Hours Badge */}
+          {/* Live Duty & Hours & Server Badge */}
           <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+            {/* Server Name Prominent Badge */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold bg-blue-950/90 border border-blue-500/60 text-blue-300 shadow-md">
+              <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span>Server: {serverName}</span>
+            </div>
+
             <div
               className={`inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold border ${
                 isOpen
@@ -330,7 +351,7 @@ export default function OrderPage() {
           </h1>
 
           <p className="max-w-2xl mx-auto text-sm sm:text-base text-zinc-400 mb-8 leading-relaxed">
-            Never break camp or lose your monster spawns. Submit your inventory below, get an instant coin quote, describe your camp location, and our couriers will run coins straight to your group.
+            Operating on <strong className="text-blue-300">{serverName}</strong>. Never break camp or lose your monster spawns. Submit your inventory below, get an instant coin quote, describe your camp location, and our couriers will run coins straight to your group.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto text-left">
@@ -354,8 +375,8 @@ export default function OrderPage() {
               <div className="w-8 h-8 rounded-lg bg-purple-950/60 border border-purple-500/30 flex items-center justify-center mb-2.5">
                 <Star className="w-4 h-4 text-purple-400" />
               </div>
-              <h4 className="text-xs font-bold text-white mb-1">Guild Bounties</h4>
-              <p className="text-[11px] text-zinc-400">Preferred items like Bone Chips and reagents pay higher premium rates!</p>
+              <h4 className="text-xs font-bold text-white mb-1">Bounties & Tiers</h4>
+              <p className="text-[11px] text-zinc-400">Fast grouped tier entries (T2 Chain, T3 Bronze) and premium rates for Bone Chips & silk!</p>
             </div>
           </div>
         </div>
@@ -372,7 +393,7 @@ export default function OrderPage() {
                 No runners currently on duty — You can still submit your order!
               </span>
               <span>
-                Standard hours: <strong className="text-white">{settings.hours_of_operation}</strong>. Orders placed while runners are resting will remain queued and claimed as soon as a courier logs on.
+                Standard hours: <strong className="text-white">{settings.hours_of_operation}</strong> on <strong className="text-blue-300">{serverName}</strong>. Orders placed while runners are resting will remain queued and claimed as soon as a courier logs on.
               </span>
             </div>
           </div>
@@ -383,7 +404,7 @@ export default function OrderPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-zinc-300">
               <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Your recent active orders:</span>
+              <span>Your recent active orders on {serverName}:</span>
               <div className="flex flex-wrap gap-2">
                 {recentOrders.map((ordId) => (
                   <button
@@ -395,6 +416,53 @@ export default function OrderPage() {
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Standard Equipment Tiers Showcase & Quick Add */}
+        {tierItems.length > 0 && (
+          <div className="bg-gradient-to-r from-blue-950/30 via-zinc-900 to-indigo-950/30 border border-blue-600/40 rounded-2xl p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-blue-400" />
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  ⚡ Standard Equipment Tiers — Quick Inventory Add
+                </h3>
+              </div>
+              <span className="text-[11px] text-blue-300 font-mono font-semibold">
+                Instant Quotes
+              </span>
+            </div>
+
+            <p className="text-xs text-zinc-400 mb-3">
+              No need to type individual piece names! Click standard tier groups to add your armor and weapons directly to your order:
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {tierItems.map((tier) => {
+                const payout = calculatePayout(tier.vendor_price_copper, settings.default_payout_percent);
+                return (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    onClick={() => addSpecificItem(tier)}
+                    className="text-left p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-700/60 hover:border-blue-400 hover:bg-blue-950/30 transition-all flex flex-col justify-between group shadow-sm"
+                  >
+                    <div className="font-bold text-xs text-white group-hover:text-blue-300 truncate">
+                      + {tier.name}
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-[11px]">
+                      <span className="text-zinc-400 font-mono">
+                        <CoinDisplay copper={tier.vendor_price_copper} compact size="sm" />
+                      </span>
+                      <span className="text-blue-300 font-bold text-[10px] bg-blue-950/80 px-1 py-0.5 rounded border border-blue-700/50">
+                        + Add
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -464,13 +532,20 @@ export default function OrderPage() {
         <form onSubmit={handleSubmitOrder} className="space-y-8">
           {/* Section 1: Customer & Camp Location */}
           <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-6">
-            <div className="flex items-center gap-3 border-b border-zinc-800 pb-4">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
-                1
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
+                  1
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Your Character & Camp Location</h2>
+                  <p className="text-xs text-zinc-400">Where should our courier meet you for the trade?</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Your Character & Camp Location</h2>
-                <p className="text-xs text-zinc-400">Where should our courier meet you for the trade?</p>
+
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-blue-950/70 border border-blue-600/40 rounded-lg text-xs font-bold text-blue-300">
+                <Globe className="w-3.5 h-3.5 text-blue-400" />
+                <span>{serverName}</span>
               </div>
             </div>
 
@@ -489,7 +564,7 @@ export default function OrderPage() {
                   onChange={(e) => setCustomerName(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
-                <span className="text-[11px] text-zinc-500 mt-1 block">Your character name in Monsters & Memories</span>
+                <span className="text-[11px] text-zinc-500 mt-1 block">Your character name in Monsters & Memories ({serverName})</span>
               </div>
 
               {/* Zone */}
@@ -562,7 +637,7 @@ export default function OrderPage() {
                 <div>
                   <h2 className="text-lg font-bold text-white">Inventory to Sell</h2>
                   <p className="text-xs text-zinc-400">
-                    Type item names. Known items get an instant quote; unlisted items will be quoted by the runner.
+                    Use tier items (T2 Chain, T3 Bronze) or specific names. Known items get an instant quote; unlisted items will be quoted by the runner.
                   </p>
                 </div>
               </div>
@@ -603,7 +678,7 @@ export default function OrderPage() {
                           <input
                             type="text"
                             required
-                            placeholder="Type item name (e.g. Wolf Pelt, Bone Chips, Bronze Longsword...)"
+                            placeholder="Type item name (e.g. T2 Chain Armor, T3 Bronze Weapon, Bone Chips...)"
                             value={row.item_name}
                             onFocus={() => {
                               setActiveSearchIndex(index);
@@ -626,7 +701,7 @@ export default function OrderPage() {
                         {/* Autocomplete Dropdown */}
                         {activeSearchIndex === index && (
                           <div
-                            className="absolute z-30 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl divide-y divide-zinc-800"
+                            className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl divide-y divide-zinc-800"
                             onMouseDown={(e) => e.preventDefault()}
                           >
                             {filteredCatalog.map((catalogItem) => {
@@ -637,6 +712,8 @@ export default function OrderPage() {
                               if (catalogItem.name.toLowerCase() === 'bone chips' && calculatedPayout === 0) {
                                 calculatedPayout = 1;
                               }
+
+                              const isTierItem = catalogItem.category === 'Tier Equipment' || /^T[1-4]\s/i.test(catalogItem.name);
 
                               return (
                                 <button
@@ -650,10 +727,15 @@ export default function OrderPage() {
                                       {catalogItem.is_preferred === 1 && (
                                         <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400/40" />
                                       )}
+                                      {isTierItem && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                                          Tier Gear
+                                        </span>
+                                      )}
                                       <span>{catalogItem.name}</span>
                                     </div>
                                     <div className="text-[10px] text-zinc-500">
-                                      {catalogItem.category} • Stack of {catalogItem.stack_size}
+                                      {catalogItem.notes ? catalogItem.notes : `${catalogItem.category} • Stack of ${catalogItem.stack_size}`}
                                     </div>
                                   </div>
                                   <div className="text-right">
@@ -739,83 +821,51 @@ export default function OrderPage() {
               <button
                 type="button"
                 onClick={addItemRow}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-xs font-semibold transition-colors"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5 text-amber-400" />
-                Add Another Item
+                <Plus className="w-4 h-4 text-amber-400" />
+                <span>Add Another Item Row</span>
               </button>
 
-              <span className="text-[11px] text-zinc-500">
-                Notice: 1c items are not bought by couriers (except for Bone Chips!).
-              </span>
+              <div className="text-right text-xs text-zinc-400">
+                {unpricedCount > 0 && (
+                  <span className="text-amber-400 font-medium">
+                    ⚠️ {unpricedCount} item(s) will be quoted by runner
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Section 3: Live Quote & Submission Summary */}
-          <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-amber-600/30 rounded-2xl p-6 shadow-2xl">
+          {/* Quote Summary & Submit Order */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-zinc-800 pb-5">
               <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Coins className="w-5 h-5 text-amber-400" />
-                  Estimated Order Summary
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Instant coin delivery directly to your camp position
+                <h3 className="text-base font-bold text-white">Estimated Camp Payout</h3>
+                <p className="text-xs text-zinc-400">
+                  {serverName} • Delivered to your camp location
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="text-[11px] text-zinc-400 font-medium">Estimated Coin Payout</div>
-                  <CoinDisplay copper={knownPayoutTotal} size="lg" showZero />
-                </div>
+              <div className="text-left sm:text-right">
+                <div className="text-xs text-zinc-400 mb-1">Instant Cash Quote:</div>
+                <CoinDisplay copper={knownPayoutTotal} size="lg" />
               </div>
             </div>
 
-            <div className="py-4 space-y-2 text-xs">
-              <div className="flex items-center justify-between text-zinc-400">
-                <span>Items in Order:</span>
-                <span className="font-mono font-medium text-white">
-                  {items.filter((i) => i.item_name.trim().length > 0).length} items
-                </span>
-              </div>
-
-              {unpricedCount > 0 && (
-                <div className="flex items-center justify-between text-amber-300 bg-amber-950/30 border border-amber-800/40 px-3 py-2 rounded-lg">
-                  <span className="flex items-center gap-1.5 font-medium">
-                    <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-                    {unpricedCount} item(s) awaiting runner price quote:
-                  </span>
-                  <span className="text-[11px]">Runner will quote & notify you</span>
-                </div>
-              )}
-
-              {knownVendorTotal > 0 && (
-                <div className="flex items-center justify-between text-zinc-400">
-                  <span>Town Vendor Sell Value (Reference):</span>
-                  <CoinDisplay copper={knownVendorTotal} size="sm" />
-                </div>
-              )}
-            </div>
-
-            <div className="pt-4 border-t border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-[11px] text-zinc-500">
-                🔒 No password required! Your Order Code & link will be generated instantly.
+            <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-xs text-zinc-400 space-y-1">
+                <p>• No login required — you will receive a unique tracking link.</p>
+                <p>• Our runner will whisper you in-game upon claiming the run.</p>
               </div>
 
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-sm tracking-wide shadow-lg shadow-amber-500/20 disabled:opacity-50 transition-all cursor-pointer"
               >
-                {isSubmitting ? (
-                  <span>Dispatching Courier...</span>
-                ) : (
-                  <>
-                    <span>Submit Mule Order</span>
-                    <ArrowRight className="w-4 h-4 text-zinc-950" />
-                  </>
-                )}
+                <span>{isSubmitting ? 'Dispatching...' : 'Dispatch The Pillar Men Courier'}</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>

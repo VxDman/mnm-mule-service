@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getAllItems, searchItems, getPreferredItems, upsertItem, deleteItem } from '@/lib/db';
+import { getAllItems, searchItems, getPreferredItems, getTierItems, upsertItem, deleteItem } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q');
     const preferredOnly = searchParams.get('preferred') === 'true';
+    const tierOnly = searchParams.get('tier') === 'true';
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : 100;
 
     if (preferredOnly) {
       const items = getPreferredItems();
+      return NextResponse.json({ items });
+    }
+
+    if (tierOnly) {
+      const items = getTierItems();
       return NextResponse.json({ items });
     }
 
@@ -64,7 +70,7 @@ export async function POST(req: NextRequest) {
       created_by: user.display_name
     });
 
-    return NextResponse.json({ success: true, item });
+    return NextResponse.json({ item });
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Server error';
     return NextResponse.json({ error: errorMsg }, { status: 500 });
@@ -74,15 +80,14 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-
     if (!id) {
-      return NextResponse.json({ error: 'Item ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Item ID required' }, { status: 400 });
     }
 
     deleteItem(id);

@@ -8,6 +8,7 @@ export async function GET() {
     const onlineRunners = getOnlineRunners();
 
     return NextResponse.json({
+      server_name: settings.server_name,
       is_service_open: settings.is_service_open,
       hours_of_operation: settings.hours_of_operation,
       online_runners: onlineRunners
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
       success: true,
       user_id: user.id,
       is_online: !!is_online,
+      server_name: settings.server_name,
       is_service_open: settings.is_service_open,
       online_runners: onlineRunners
     });

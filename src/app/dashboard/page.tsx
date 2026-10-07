@@ -26,7 +26,8 @@ import {
   MessageSquare,
   Radio,
   Star,
-  Users
+  Users,
+  Globe
 } from 'lucide-react';
 import { CoinDisplay } from '@/components/CoinDisplay';
 import { CoinInput } from '@/components/CoinInput';
@@ -45,7 +46,7 @@ function playOrderChime() {
       const gain = ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.15, ctx.currentTime + idx * 0.1);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime + idx * 0.1);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.1 + 0.35);
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -62,6 +63,7 @@ export default function RunnerDashboard() {
   const [onlineRunners, setOnlineRunners] = useState<Array<{ id: string; display_name: string }>>([]);
   const [isServiceOpen, setIsServiceOpen] = useState(false);
   const [hoursOfOperation, setHoursOfOperation] = useState('');
+  const [serverName, setServerName] = useState('Tilustra (NA East 2)');
   const [isDutyLoading, setIsDutyLoading] = useState(false);
   const [stats, setStats] = useState<{
     totalCompleted: number;
@@ -107,6 +109,7 @@ export default function RunnerDashboard() {
       const dutyData = await dutyRes.json();
       setIsServiceOpen(dutyData.is_service_open);
       setHoursOfOperation(dutyData.hours_of_operation);
+      if (dutyData.server_name) setServerName(dutyData.server_name);
       setOnlineRunners(dutyData.online_runners || []);
 
       // 3. Fetch orders
@@ -140,8 +143,15 @@ export default function RunnerDashboard() {
   }, [router, soundEnabled]);
 
   useEffect(() => {
-    fetchData(false);
+    fetchData();
 
+    // Sound preference
+    const soundPref = localStorage.getItem('mule_sound_enabled');
+    if (soundPref !== null) {
+      setSoundEnabled(soundPref === 'true');
+    }
+
+    // Live poll queue every 4 seconds
     const interval = setInterval(() => {
       fetchData(true);
     }, 4000);
@@ -169,9 +179,9 @@ export default function RunnerDashboard() {
     }
   };
 
-  const handleOpenQuoteModal = (order: Order) => {
+  const openQuoteModal = (order: Order) => {
     setSelectedOrderForQuote(order);
-    const initialQuotes: Record<string, {
+    const initial: Record<string, {
       vendorCopper: number;
       saveToCatalog: boolean;
       category: string;
@@ -180,22 +190,23 @@ export default function RunnerDashboard() {
     }> = {};
 
     order.items?.forEach((it) => {
-      initialQuotes[it.id] = {
+      initial[it.id] = {
         vendorCopper: it.vendor_unit_copper || 0,
         saveToCatalog: true,
         category: 'Loot',
-        isPreferred: it.is_preferred === 1,
+        isPreferred: !!it.is_preferred,
         preferredPercent: 90
       };
     });
-    setQuoteInputs(initialQuotes);
+    setQuoteInputs(initial);
   };
 
   const handleSaveQuotes = async () => {
     if (!selectedOrderForQuote) return;
 
-    const payload = Object.entries(quoteInputs).map(([oiId, data]) => ({
-      order_item_id: oiId,
+    const payload = Object.entries(quoteInputs).map(([itemId, data]) => ({
+      item_id: itemId,
+      item_name: selectedOrderForQuote.items?.find((i) => i.id === itemId)?.item_name || '',
       vendor_unit_copper: data.vendorCopper,
       save_to_catalog: data.saveToCatalog,
       category: data.category,
@@ -259,12 +270,12 @@ export default function RunnerDashboard() {
       return o.status === 'quoted';
     }
     if (filterTab === 'my_runs') {
-      return o.assigned_runner_id === currentUser?.id && ['accepted', 'arrived'].includes(o.status);
+      return o.assigned_runner_id === currentUser?.id;
     }
     if (filterTab === 'completed') {
       return o.status === 'completed';
     }
-    return true;
+    return true; // 'all'
   });
 
   if (loading) {
@@ -292,9 +303,17 @@ export default function RunnerDashboard() {
                 <span className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-600/50 text-amber-400 text-xs font-mono font-bold">
                   LIVE
                 </span>
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-950/80 border border-blue-500/50 text-blue-300">
+                  <Globe className="w-3.5 h-3.5 text-blue-400" />
+                  {serverName}
+                </span>
               </div>
-              <p className="text-xs text-zinc-400 mt-1">
-                Runner: <span className="text-amber-300 font-semibold">{currentUser?.display_name}</span> • Operating Hours: <span className="text-zinc-300">{hoursOfOperation}</span>
+              <p className="text-xs text-zinc-400 mt-1 flex flex-wrap items-center gap-2">
+                <span>Runner: <strong className="text-amber-300 font-semibold">{currentUser?.display_name}</strong></span>
+                <span>•</span>
+                <span>Server: <strong className="text-blue-300 font-semibold">{serverName}</strong></span>
+                <span>•</span>
+                <span>Operating Hours: <strong className="text-zinc-300">{hoursOfOperation}</strong></span>
               </p>
             </div>
 
@@ -343,474 +362,409 @@ export default function RunnerDashboard() {
           <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 text-zinc-400">
               <Users className="w-4 h-4 text-cyan-400" />
-              <span>Couriers Currently On Duty:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {onlineRunners.length > 0 ? (
-                  onlineRunners.map((r) => (
+              <span className="font-semibold text-zinc-300">Runners Currently On Duty:</span>
+              {onlineRunners.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {onlineRunners.map((r) => (
                     <span
                       key={r.id}
-                      className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold border ${
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold ${
                         r.id === currentUser?.id
-                          ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
-                          : 'bg-zinc-900 border-zinc-700 text-cyan-300'
+                          ? 'bg-amber-950/80 border border-amber-600/60 text-amber-300'
+                          : 'bg-emerald-950/60 border border-emerald-600/40 text-emerald-300'
                       }`}
                     >
-                      {r.display_name} {r.id === currentUser?.id && '(You)'}
+                      {r.display_name} {r.id === currentUser?.id ? '(You)' : ''}
                     </span>
-                  ))
-                ) : (
-                  <span className="text-zinc-500 italic">No runners on duty (Service is currently closed to incoming live alerts)</span>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-zinc-500 italic">No runners on duty (Service closed to auto dispatch)</span>
+              )}
             </div>
 
-            <div className="text-[11px] text-zinc-500">
-              Service Status: <strong className={isServiceOpen ? 'text-emerald-400' : 'text-zinc-400'}>{isServiceOpen ? '🟢 OPEN' : '🔴 CLOSED'}</strong>
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${isServiceOpen ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}`} />
+              <span className="text-[11px] font-bold text-zinc-300">
+                {isServiceOpen ? 'Service Status: OPEN' : 'Service Status: CLOSED'}
+              </span>
             </div>
           </div>
 
-          {/* Stats Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow-sm">
-              <div className="text-[11px] text-zinc-400 font-medium">Active Queue Orders</div>
-              <div className="text-2xl font-extrabold text-amber-400 font-mono mt-1">
-                {orders.filter((o) => ['pending_quote', 'quoted', 'accepted', 'arrived'].includes(o.status)).length}
+          {/* KPI Stat Cards */}
+          {stats && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-3.5">
+                <span className="text-[11px] text-zinc-400 font-medium">Active Queue</span>
+                <div className="text-xl font-extrabold text-amber-400 mt-1 font-mono">{stats.activeOrders}</div>
+              </div>
+              <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-3.5">
+                <span className="text-[11px] text-zinc-400 font-medium">Completed Runs</span>
+                <div className="text-xl font-extrabold text-emerald-400 mt-1 font-mono">{stats.totalCompleted}</div>
+              </div>
+              <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-3.5">
+                <span className="text-[11px] text-zinc-400 font-medium">Total Guild Profit</span>
+                <div className="mt-1">
+                  <CoinDisplay copper={stats.totalProfitCopper} compact size="sm" />
+                </div>
+              </div>
+              <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-3.5">
+                <span className="text-[11px] text-zinc-400 font-medium">Price Catalog Items</span>
+                <div className="text-xl font-extrabold text-cyan-400 mt-1 font-mono">{stats.itemCount}</div>
               </div>
             </div>
-
-            <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow-sm">
-              <div className="text-[11px] text-zinc-400 font-medium">Needs Runner Quote</div>
-              <div className="text-2xl font-extrabold text-amber-300 font-mono mt-1">
-                {orders.filter((o) => o.status === 'pending_quote').length}
-              </div>
-            </div>
-
-            <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow-sm">
-              <div className="text-[11px] text-zinc-400 font-medium">Completed Runs</div>
-              <div className="text-2xl font-extrabold text-emerald-400 font-mono mt-1">
-                {stats?.totalCompleted || 0}
-              </div>
-            </div>
-
-            <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow-sm">
-              <div className="text-[11px] text-zinc-400 font-medium">Guild Runner Profit</div>
-              <div className="mt-1">
-                <CoinDisplay copper={stats?.totalProfitCopper || 0} size="md" showZero />
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Queue & Filtering */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
-        {/* Filter Navigation Tabs */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 pb-3">
+        {/* Tab Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-zinc-800 text-xs">
           <button
             onClick={() => setFilterTab('active')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-2 ${
               filterTab === 'active'
                 ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white'
             }`}
           >
-            <span>All Active</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-zinc-950/20 text-[10px]">
+            <span>Active Runs</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-zinc-950/30">
               {orders.filter((o) => ['pending_quote', 'quoted', 'accepted', 'arrived'].includes(o.status)).length}
             </span>
           </button>
 
           <button
             onClick={() => setFilterTab('needs_quote')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-2 ${
               filterTab === 'needs_quote'
                 ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white'
             }`}
           >
             <span>Needs Quote</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-zinc-950/20 text-[10px]">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-zinc-950/30">
               {orders.filter((o) => o.status === 'pending_quote').length}
             </span>
           </button>
 
           <button
             onClick={() => setFilterTab('claimable')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-2 ${
               filterTab === 'claimable'
                 ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white'
             }`}
           >
-            <span>Ready to Claim</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-zinc-950/20 text-[10px]">
+            <span>Claimable (Quoted)</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-zinc-950/30">
               {orders.filter((o) => o.status === 'quoted').length}
             </span>
           </button>
 
           <button
             onClick={() => setFilterTab('my_runs')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-2 ${
               filterTab === 'my_runs'
                 ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white'
             }`}
           >
-            <span>My Active Runs</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-zinc-950/20 text-[10px]">
-              {orders.filter((o) => o.assigned_runner_id === currentUser?.id && ['accepted', 'arrived'].includes(o.status)).length}
+            <span>My Runs</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-zinc-950/30">
+              {orders.filter((o) => o.assigned_runner_id === currentUser?.id).length}
             </span>
           </button>
 
           <button
             onClick={() => setFilterTab('completed')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-colors ${
               filterTab === 'completed'
                 ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white'
             }`}
           >
-            Completed History
+            Completed
           </button>
 
           <button
             onClick={() => setFilterTab('all')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-colors ${
               filterTab === 'all'
                 ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white'
             }`}
           >
-            View All ({orders.length})
+            All Orders ({orders.length})
           </button>
         </div>
 
-        {/* Orders List */}
-        {filteredOrders.length === 0 ? (
-          <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center space-y-3">
-            <Package className="w-12 h-12 text-zinc-700 mx-auto" />
-            <h3 className="text-base font-bold text-white">No Orders in this Queue</h3>
-            <p className="text-xs text-zinc-400">
-              When players submit loot runs from camp, their requests will appear here immediately with audio notifications.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredOrders.map((order) => {
-              const estimatedProfit = order.total_vendor_copper - order.total_payout_copper;
-              const hasUnpriced = order.items?.some((i) => !i.is_priced || i.vendor_unit_copper === 0);
-              const isAssignedToMe = order.assigned_runner_id === currentUser?.id;
+        {/* Order Cards List */}
+        <div className="space-y-4">
+          {filteredOrders.length === 0 ? (
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center text-zinc-500">
+              <Package className="w-10 h-10 mx-auto mb-3 opacity-30 text-amber-400" />
+              <p className="text-sm font-medium">No orders in this category right now.</p>
+              <p className="text-xs text-zinc-500 mt-1">Keep eyes open for static camps calling on {serverName}!</p>
+            </div>
+          ) : (
+            filteredOrders.map((order) => {
+              const profitCopper = Math.max(0, order.total_vendor_copper - order.total_payout_copper);
 
               return (
                 <div
                   key={order.id}
-                  className={`bg-zinc-900/90 border rounded-2xl p-5 shadow-xl flex flex-col justify-between transition-all relative ${
-                    order.status === 'arrived'
-                      ? 'border-cyan-500/60 shadow-cyan-950/20'
-                      : order.status === 'accepted'
-                      ? 'border-amber-500/50 shadow-amber-950/20'
-                      : order.status === 'pending_quote'
-                      ? 'border-amber-700/60'
-                      : 'border-zinc-800'
-                  }`}
+                  className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 shadow-xl hover:border-zinc-700 transition-all space-y-4"
                 >
-                  <div className="space-y-4">
-                    {/* Header: ID, Status, Timestamp */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-extrabold text-sm text-white">{order.id}</span>
-                        <Link
-                          href={`/order/${order.id}`}
-                          target="_blank"
-                          title="View customer page"
-                          className="text-zinc-500 hover:text-amber-400 transition-colors"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </Link>
-                      </div>
-
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-base font-extrabold text-amber-400">
+                        {order.id}
+                      </span>
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
                           order.status === 'completed'
-                            ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-300'
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
                             : order.status === 'arrived'
-                            ? 'bg-cyan-950 border border-cyan-500/40 text-cyan-300 animate-pulse'
+                            ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 animate-pulse'
                             : order.status === 'accepted'
-                            ? 'bg-amber-950 border border-amber-500/40 text-amber-300'
+                            ? 'bg-amber-950 text-amber-300 border border-amber-500/40'
                             : order.status === 'pending_quote'
-                            ? 'bg-rose-950/80 border border-rose-600/40 text-rose-300'
-                            : order.status === 'cancelled'
-                            ? 'bg-zinc-800 text-zinc-500'
-                            : 'bg-zinc-800 border border-zinc-700 text-zinc-300'
+                            ? 'bg-rose-950 text-rose-300 border border-rose-500/40'
+                            : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
                         }`}
                       >
                         {order.status.replace('_', ' ')}
                       </span>
+                      <span className="text-xs text-zinc-400">
+                        From: <strong className="text-white">{order.customer_name}</strong>
+                      </span>
                     </div>
 
-                    {/* Customer & Location */}
-                    <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-3.5 space-y-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-zinc-400">Customer Character:</span>
-                        <span className="font-bold text-amber-300 text-sm">{order.customer_name}</span>
-                      </div>
+                    <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
+                      <span>{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <Link
+                        href={`/order/${order.id}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 text-amber-400 hover:underline"
+                      >
+                        <span>Tracking Page</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-zinc-400">Zone:</span>
-                        <span className="font-medium text-white">{order.zone}</span>
+                  {/* Middle Section: Zone, Camp, Inventory Summary, Profit */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    {/* Zone & Camp */}
+                    <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-3 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-zinc-400">
+                        <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                        <span className="font-bold text-white">{order.zone}</span>
                       </div>
-
-                      <div className="flex items-start justify-between">
-                        <span className="text-zinc-400 shrink-0">Camp Landmarks:</span>
-                        <span className="text-zinc-300 text-right ml-2 text-[11px] truncate max-w-[180px]" title={order.camp_location}>
-                          {order.camp_location}
-                        </span>
-                      </div>
-
+                      <p className="text-amber-300 font-medium pl-5 leading-snug">
+                        {order.camp_location}
+                      </p>
                       {order.customer_notes && (
-                        <div className="pt-1.5 border-t border-zinc-800/80 text-[11px] text-zinc-400 italic">
+                        <p className="text-[11px] text-zinc-500 italic pl-5">
                           "{order.customer_notes}"
-                        </div>
+                        </p>
                       )}
                     </div>
 
-                    {/* Items Summary */}
-                    <div>
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="font-medium text-zinc-300">
-                          {order.items?.length || 0} Item(s) in Run:
-                        </span>
-                        {hasUnpriced && (
-                          <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 text-amber-400" />
-                            Unpriced item(s)
-                          </span>
-                        )}
+                    {/* Inventory Items Summary */}
+                    <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-3 space-y-1 overflow-y-auto max-h-28">
+                      <div className="text-[11px] font-bold text-zinc-400 mb-1 flex items-center justify-between">
+                        <span>Items ({order.items?.length || 0})</span>
+                        <span>Qty</span>
                       </div>
-
-                      <div className="max-h-24 overflow-y-auto space-y-1 pr-1 text-[11px] text-zinc-400">
-                        {order.items?.map((it) => (
-                          <div key={it.id} className="flex items-center justify-between">
-                            <span className="truncate max-w-[160px] text-zinc-300 flex items-center gap-1">
-                              {it.is_preferred === 1 && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />}
-                              <span>{it.quantity}x {it.item_name}</span>
-                            </span>
-                            {it.is_priced && it.payout_unit_copper > 0 ? (
-                              <CoinDisplay copper={it.payout_unit_copper * it.quantity} size="sm" />
-                            ) : (
-                              <span className="text-amber-400 text-[10px]">Needs Quote</span>
+                      {order.items?.map((it) => (
+                        <div key={it.id} className="flex items-center justify-between text-zinc-300 text-[11px]">
+                          <span className="truncate max-w-[180px] flex items-center gap-1">
+                            {it.is_preferred === 1 && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 shrink-0" />}
+                            {it.item_name}
+                            {!it.is_priced && (
+                              <span className="text-amber-400 font-bold ml-1">(unpriced)</span>
                             )}
-                          </div>
-                        ))}
-                      </div>
+                          </span>
+                          <span className="font-mono text-zinc-400 font-bold">x{it.quantity}</span>
+                        </div>
+                      ))}
                     </div>
 
-                    {/* Financials / Profit */}
-                    <div className="bg-zinc-950/60 rounded-xl p-3 border border-zinc-800/80 space-y-1 text-xs">
-                      <div className="flex items-center justify-between text-zinc-400">
-                        <span>Customer Payout:</span>
-                        <CoinDisplay copper={order.total_payout_copper} size="sm" showZero />
+                    {/* Payout & Guild Profit */}
+                    <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-3 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between text-zinc-400 mb-1">
+                          <span>Customer Payout:</span>
+                          <CoinDisplay copper={order.total_payout_copper} size="sm" />
+                        </div>
+                        <div className="flex items-center justify-between text-zinc-400">
+                          <span>Est. Guild Profit:</span>
+                          <CoinDisplay copper={profitCopper} compact size="sm" />
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between font-semibold text-emerald-400">
-                        <span>Estimated Runner Profit:</span>
-                        <CoinDisplay copper={estimatedProfit} size="sm" showZero />
-                      </div>
-                    </div>
 
-                    {/* Assigned Runner Info */}
-                    {order.assigned_runner_name && (
-                      <div className="text-[11px] text-zinc-400 flex items-center justify-between border-t border-zinc-800/60 pt-2">
-                        <span>Assigned Runner:</span>
-                        <span className="font-semibold text-white">
-                          {order.assigned_runner_name} {isAssignedToMe && '(You)'}
-                        </span>
-                      </div>
-                    )}
+                      {order.assigned_runner_name && (
+                        <div className="pt-2 border-t border-zinc-800/80 text-[11px] text-zinc-400 flex items-center justify-between">
+                          <span>Runner: <strong className="text-amber-300">{order.assigned_runner_name}</strong></span>
+                          {order.runner_eta && <span className="text-zinc-300 font-mono">ETA: {order.runner_eta}</span>}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="mt-5 pt-3 border-t border-zinc-800 space-y-2">
+                  {/* Actions Bar */}
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-zinc-800/80">
+                    {/* If Needs Quote */}
                     {order.status === 'pending_quote' && (
                       <button
-                        onClick={() => handleOpenQuoteModal(order)}
-                        className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-zinc-950 text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                        onClick={() => openQuoteModal(order)}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md transition-colors flex items-center gap-1.5"
                       >
-                        <HelpCircle className="w-4 h-4" />
-                        <span>Price Unknown Items & Quote</span>
+                        <Coins className="w-3.5 h-3.5" />
+                        <span>Fill Price Quote</span>
                       </button>
                     )}
 
+                    {/* If Quoted -> Claim Run */}
                     {order.status === 'quoted' && (
                       <button
                         onClick={() => {
                           setSelectedOrderForAccept(order);
                           setEtaInput('5 mins');
+                          setNotesInput('');
                         }}
-                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-zinc-950 text-xs font-bold shadow-md transition-colors flex items-center gap-1.5"
                       >
-                        <Package className="w-4 h-4" />
-                        <span>Claim & Dispatch Courier</span>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Claim Run & Dispatch</span>
                       </button>
                     )}
 
+                    {/* If Accepted -> Arrived */}
                     {order.status === 'accepted' && (
-                      <div className="space-y-1.5">
-                        <button
-                          onClick={() => handleUpdateStatus(order.id, 'arrived')}
-                          className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-colors"
-                        >
-                          <MapPin className="w-4 h-4" />
-                          <span>Mark Arrived at Camp</span>
-                        </button>
-                        <button
-                          onClick={() => handleUpdateStatus(order.id, 'completed')}
-                          className="w-full py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] font-medium"
-                        >
-                          Direct Complete Trade
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleUpdateStatus(order.id, 'arrived', `Runner ${currentUser?.display_name} has arrived at the camp!`)}
+                        className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-zinc-950 text-xs font-bold transition-colors flex items-center gap-1.5"
+                      >
+                        <MapPin className="w-3.5 h-3.5" />
+                        <span>Mark Arrived at Camp</span>
+                      </button>
                     )}
 
+                    {/* If Arrived -> Complete Trade */}
                     {order.status === 'arrived' && (
                       <button
-                        onClick={() => handleUpdateStatus(order.id, 'completed')}
-                        className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                        onClick={() => handleUpdateStatus(order.id, 'completed', 'Trade successfully concluded. Coins handed over.')}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-xs font-bold transition-colors flex items-center gap-1.5"
                       >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Trade Complete & Close Order</span>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Complete Trade</span>
                       </button>
                     )}
 
-                    <div className="flex items-center justify-between text-[11px] pt-1">
+                    {order.status !== 'completed' && order.status !== 'cancelled' && (
                       <button
-                        onClick={() => handleOpenQuoteModal(order)}
-                        className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                        onClick={() => {
+                          const reason = prompt('Reason for cancelling order (optional):');
+                          handleUpdateStatus(order.id, 'cancelled', reason ? `Cancelled by runner: ${reason}` : 'Cancelled by runner.');
+                        }}
+                        className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-300 text-xs font-medium transition-colors"
                       >
-                        Edit Item Quotes
+                        Cancel
                       </button>
-
-                      {order.status !== 'completed' && order.status !== 'cancelled' && (
-                        <button
-                          onClick={() => handleUpdateStatus(order.id, 'cancelled', 'Cancelled by runner')}
-                          className="text-rose-500 hover:text-rose-400 transition-colors"
-                        >
-                          Cancel Run
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
               );
-            })}
-          </div>
-        )}
+            })
+          )}
+        </div>
       </main>
 
-      {/* Quote / Price Setting Modal */}
+      {/* Fill Quote Modal */}
       {selectedOrderForQuote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-w-2xl w-full p-6 text-zinc-100 space-y-5 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Coins className="w-5 h-5 text-amber-400" />
-                  Evaluate & Quote Items — Order {selectedOrderForQuote.id}
+                  Fill Quote for Order {selectedOrderForQuote.id}
                 </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Set town vendor sell price for items. Prices will auto-save to the registry for next time!
+                <p className="text-xs text-zinc-400">
+                  Customer: <span className="text-amber-300">{selectedOrderForQuote.customer_name}</span> at {selectedOrderForQuote.zone} ({selectedOrderForQuote.camp_location})
                 </p>
               </div>
               <button
                 onClick={() => setSelectedOrderForQuote(null)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+                className="text-zinc-500 hover:text-zinc-300 text-sm"
               >
-                <X className="w-5 h-5" />
+                ✕
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <p className="text-xs text-zinc-300">
+              Enter the vendor sale value for items below. Checked items will be automatically remembered in the price catalog for future customers.
+            </p>
+
+            <div className="space-y-4">
               {selectedOrderForQuote.items?.map((it) => {
-                const currentVendor = quoteInputs[it.id]?.vendorCopper || 0;
-                const isBounty = quoteInputs[it.id]?.isPreferred || false;
-                const rate = isBounty ? (quoteInputs[it.id]?.preferredPercent || 90) : selectedOrderForQuote.payout_percent;
-                let calculatedPayoutUnit = calculatePayout(currentVendor, rate);
-                if (it.item_name.toLowerCase() === 'bone chips' && calculatedPayoutUnit === 0 && currentVendor > 0) {
-                  calculatedPayoutUnit = 1;
-                }
+                const currentInput = quoteInputs[it.id] || {
+                  vendorCopper: 0,
+                  saveToCatalog: true,
+                  category: 'Loot',
+                  isPreferred: false,
+                  preferredPercent: 90
+                };
 
                 return (
-                  <div
-                    key={it.id}
-                    className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3"
-                  >
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                      <div>
-                        <div className="text-sm font-bold text-white flex items-center gap-1.5">
-                          {isBounty && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />}
-                          <span>{it.quantity}x <span className="text-amber-300">{it.item_name}</span></span>
-                        </div>
-                        <div className="text-[11px] text-zinc-500">
-                          {it.is_priced ? 'Previously priced item' : '⭐ Uncatalogued item submitted by customer'}
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <div className="text-[10px] text-zinc-400">Customer Payout ({rate}%):</div>
-                        <CoinDisplay copper={calculatedPayoutUnit * it.quantity} size="sm" showZero />
-                      </div>
+                  <div key={it.id} className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-white">{it.item_name}</span>
+                      <span className="text-xs font-mono text-zinc-400">Qty: x{it.quantity}</span>
                     </div>
 
                     <div>
+                      <label className="block text-[11px] text-zinc-400 mb-1">
+                        Vendor Unit Sale Price (Coins):
+                      </label>
                       <CoinInput
-                        label="Town Vendor Sell Price (per unit):"
-                        copperValue={currentVendor}
-                        onChange={(copper) => {
-                          setQuoteInputs({
-                            ...quoteInputs,
-                            [it.id]: {
-                              ...quoteInputs[it.id],
-                              vendorCopper: copper
-                            }
-                          });
-                        }}
+                        copper={currentInput.vendorCopper}
+                        onChange={(cop) => setQuoteInputs({
+                          ...quoteInputs,
+                          [it.id]: { ...currentInput, vendorCopper: cop }
+                        })}
                       />
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-900 text-xs">
-                      <label className="flex items-center gap-2 text-zinc-300 cursor-pointer select-none">
+                    <div className="flex flex-wrap items-center gap-4 text-xs pt-1 border-t border-zinc-900">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
                         <input
                           type="checkbox"
-                          checked={quoteInputs[it.id]?.saveToCatalog ?? true}
-                          onChange={(e) => {
-                            setQuoteInputs({
-                              ...quoteInputs,
-                              [it.id]: {
-                                ...quoteInputs[it.id],
-                                saveToCatalog: e.target.checked
-                              }
-                            });
-                          }}
-                          className="rounded bg-zinc-900 border-zinc-700 text-amber-500 focus:ring-amber-500"
+                          checked={currentInput.saveToCatalog}
+                          onChange={(e) => setQuoteInputs({
+                            ...quoteInputs,
+                            [it.id]: { ...currentInput, saveToCatalog: e.target.checked }
+                          })}
+                          className="rounded border-zinc-700 text-amber-500 focus:ring-amber-500"
                         />
-                        <span>Save to permanent Item Registry</span>
+                        <span>Save to Price Catalog</span>
                       </label>
 
-                      <label className="flex items-center gap-1.5 text-amber-300 font-medium cursor-pointer select-none">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-amber-300">
                         <input
                           type="checkbox"
-                          checked={isBounty}
-                          onChange={(e) => {
-                            setQuoteInputs({
-                              ...quoteInputs,
-                              [it.id]: {
-                                ...quoteInputs[it.id],
-                                isPreferred: e.target.checked
-                              }
-                            });
-                          }}
-                          className="rounded bg-zinc-900 border-zinc-700 text-amber-500 focus:ring-amber-500"
+                          checked={currentInput.isPreferred}
+                          onChange={(e) => setQuoteInputs({
+                            ...quoteInputs,
+                            [it.id]: { ...currentInput, isPreferred: e.target.checked }
+                          })}
+                          className="rounded border-zinc-700 text-amber-500 focus:ring-amber-500"
                         />
-                        <span>Guild Wanted Bounty (90% Payout)</span>
+                        <span>Guild Bounty Item</span>
                       </label>
                     </div>
                   </div>
@@ -818,109 +772,89 @@ export default function RunnerDashboard() {
               })}
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800">
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
               <button
                 type="button"
                 onClick={() => setSelectedOrderForQuote(null)}
-                className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-semibold"
+                className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-medium"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSaveQuotes}
-                className="px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md"
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md transition-colors"
               >
-                Save Quotes & Update Order
+                Save Quote & Notify Customer
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Accept & Dispatch Modal */}
+      {/* Claim / Dispatch Order Modal */}
       {selectedOrderForAccept && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-w-md w-full p-6 text-zinc-100 space-y-5">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Package className="w-5 h-5 text-amber-400" />
-                Claim & Dispatch to Order {selectedOrderForAccept.id}
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                Claim Run {selectedOrderForAccept.id}
               </h3>
               <button
                 onClick={() => setSelectedOrderForAccept(null)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+                className="text-zinc-500 hover:text-zinc-300 text-sm"
               >
-                <X className="w-4 h-4" />
+                ✕
               </button>
             </div>
 
-            <div className="space-y-4 text-xs">
-              <div>
-                <span className="text-zinc-400 block mb-1">Customer Meeting Location:</span>
-                <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-zinc-200">
-                  <div className="font-bold text-white">{selectedOrderForAccept.customer_name} @ {selectedOrderForAccept.zone}</div>
-                  <div className="text-amber-400 text-[11px] mt-0.5">{selectedOrderForAccept.camp_location}</div>
-                </div>
-              </div>
+            <p className="text-zinc-300">
+              You are accepting the run to <strong className="text-white">{selectedOrderForAccept.customer_name}</strong> at <strong className="text-amber-300">{selectedOrderForAccept.zone}</strong> ({selectedOrderForAccept.camp_location}).
+            </p>
 
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Estimated Travel Time (ETA)
+                <label className="block text-zinc-300 font-semibold mb-1">
+                  Estimated Travel Time (ETA):
                 </label>
-                <div className="grid grid-cols-4 gap-2 mb-2">
-                  {['2 mins', '5 mins', '8 mins', '12 mins'].map((timePreset) => (
-                    <button
-                      key={timePreset}
-                      type="button"
-                      onClick={() => setEtaInput(timePreset)}
-                      className={`py-1.5 px-2 rounded-lg text-xs font-medium border text-center transition-colors ${
-                        etaInput === timePreset
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold'
-                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
-                      }`}
-                    >
-                      {timePreset}
-                    </button>
-                  ))}
-                </div>
                 <input
                   type="text"
-                  placeholder="Custom ETA (e.g. 7 mins, on boat, running highpass)"
                   value={etaInput}
                   onChange={(e) => setEtaInput(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  placeholder="e.g. 5 mins or Running through EC"
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                  Courier Note (Optional)
+                <label className="block text-zinc-300 font-semibold mb-1">
+                  Runner Note to Customer (Optional):
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Coming on stealth rogue, safe to trade"
                   value={notesInput}
                   onChange={(e) => setNotesInput(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  placeholder="e.g. Grabbing coins from bank, whisper me if you pull adds"
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setSelectedOrderForAccept(null)}
-                className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-semibold"
+                className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 font-medium"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleAcceptOrder}
-                className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-zinc-950 font-bold shadow-md transition-colors"
               >
-                Confirm & Dispatch
+                Confirm Claim & Dispatch
               </button>
             </div>
           </div>

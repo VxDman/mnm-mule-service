@@ -84,6 +84,7 @@ export interface Order {
 
 export interface AppSettings {
   guild_name: string;
+  server_name?: string;
   hours_of_operation: string;
   default_payout_percent: number;
   motd: string;

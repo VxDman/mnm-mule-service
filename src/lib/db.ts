@@ -171,6 +171,9 @@ export function parsePriceToCopper(str: string): number {
 
 function guessCategory(name: string): string {
   const n = name.toLowerCase();
+  if (/^t[1-4]\s/i.test(name) || n.includes("tier equipment")) {
+    return "Tier Equipment";
+  }
   if (n.includes('sword') || n.includes('dagger') || n.includes('axe') || n.includes('mace') || n.includes('spear') || n.includes('bow') || n.includes('staff') || n.includes('scythe') || n.includes('cleaver') || n.includes('lance') || n.includes('trident') || n.includes('hammer') || n.includes('maul')) {
     return 'Weapon';
   }
@@ -193,6 +196,7 @@ function seedInitialData(db: Database.Database) {
   // 1. Seed Settings (Guild Name: "The Pillar Men", no guild tag)
   const defaultSettings: Record<string, string> = {
     guild_name: 'The Pillar Men',
+    server_name: 'Tilustra (NA East 2)',
     hours_of_operation: 'Daily 6:00 PM - 2:00 AM EST (or whenever runners are on duty)',
     default_payout_percent: '75',
     service_status_mode: 'auto',
@@ -229,7 +233,8 @@ function seedInitialData(db: Database.Database) {
     const lines = content.split('\n').filter((l) => l.trim().length > 0);
     lines.shift(); // Remove header
 
-    const upsertItemStmt = db.prepare(`
+    
+        const upsertItemStmt = db.prepare(`
       INSERT INTO items (
         id, name, category, vendor_price_copper, stack_size, notes,
         is_preferred, preferred_payout_percent, preferred_bounty_notes, can_buy, created_by
@@ -241,6 +246,47 @@ function seedInitialData(db: Database.Database) {
         preferred_payout_percent = excluded.preferred_payout_percent,
         preferred_bounty_notes = excluded.preferred_bounty_notes
     `);
+
+    const standardTierItems = [
+      { name: 'T1 Cloth Armor', category: 'Tier Equipment', price: 25, notes: 'Standard T1 Cloth Armor piece (Tattered Cloth Robe, Tunic, Boots, Veil, etc.)' },
+      { name: 'T1 Leather Armor', category: 'Tier Equipment', price: 40, notes: 'Standard T1 Leather / Rawhide piece (Tattered Rawhide Tunic, Leggings, Boots, etc.)' },
+      { name: 'T1 Rusty 1H Weapon', category: 'Tier Equipment', price: 13, notes: 'Standard T1 1H Weapon (Rusty Dagger, Shortsword, Mace, Axe, Spear, etc.)' },
+      { name: 'T1 Rusty 2H Weapon', category: 'Tier Equipment', price: 25, notes: 'Standard T1 2H Weapon (Rusty Greatsword, Battle Axe, Maul, War Lance, etc.)' },
+      { name: 'T1 Rusty Shield', category: 'Tier Equipment', price: 25, notes: 'Standard T1 Shield (Rusty Kite Shield, Tower Shield, Buckler)' },
+      { name: 'T1 Worn Bow / Staff', category: 'Tier Equipment', price: 50, notes: 'Standard T1 Wooden Bow or Caster Staff (Cracked Staff, Worn Staff, Worn Bow)' },
+      { name: 'T2 Chain Armor', category: 'Tier Equipment', price: 125, notes: 'Standard T2 Chain piece (Corroded Bronze Chain Gambeson, Shoulderguards, Wristguards)' },
+      { name: 'T2 Leather Armor', category: 'Tier Equipment', price: 80, notes: 'Standard T2 Cured Leather piece' },
+      { name: 'T2 Bronze Weapon', category: 'Tier Equipment', price: 125, notes: 'Standard T2 Bronze 1H Weapon (Corroded Bronze Dagger, etc.)' },
+      { name: 'T2 Bronze 2H Weapon', category: 'Tier Equipment', price: 150, notes: 'Standard T2 Bronze 2H Weapon (Corroded Bronze War Lance, Scythe, etc.)' },
+      { name: 'T2 Bronze Shield', category: 'Tier Equipment', price: 62, notes: 'Standard T2 Shield (Corroded Bronze Kite Shield)' },
+      { name: 'T2 Fine Wood Bow', category: 'Tier Equipment', price: 250, notes: 'Standard T2 Fine Wood Bow (Worn Fine Wood Bow)' },
+      { name: 'T3 Bronze Weapon', category: 'Tier Equipment', price: 300, notes: 'Standard T3 Bronze Weapon (Pristine Bronze 1H/2H)' },
+      { name: 'T3 Bronze 2H Weapon', category: 'Tier Equipment', price: 400, notes: 'Standard T3 Heavy Bronze 2H Weapon' },
+      { name: 'T3 Chain Armor', category: 'Tier Equipment', price: 350, notes: 'Standard T3 Chain Armor piece' },
+      { name: 'T3 Leather Armor', category: 'Tier Equipment', price: 180, notes: 'Standard T3 Hardened Leather piece' },
+      { name: 'T3 Iron Weapon', category: 'Tier Equipment', price: 450, notes: 'Standard T3 Iron Weapon' },
+      { name: 'T3 Iron Shield', category: 'Tier Equipment', price: 200, notes: 'Standard T3 Iron Shield' },
+      { name: 'T3 Iron Plate Armor', category: 'Tier Equipment', price: 500, notes: 'Standard T3 Iron Plate piece' },
+      { name: 'T4 Steel Weapon', category: 'Tier Equipment', price: 800, notes: 'Standard T4 Fine Steel Weapon' },
+      { name: 'T4 Plate / Chain Armor', category: 'Tier Equipment', price: 1000, notes: 'Standard T4 Fine Plate or Chain piece (1 plat)' },
+    ];
+
+    for (const tItem of standardTierItems) {
+      upsertItemStmt.run(
+        'item-' + crypto.randomUUID().slice(0, 8),
+        tItem.name,
+        tItem.category,
+        tItem.price,
+        1,
+        tItem.notes,
+        0,
+        null,
+        null,
+        1
+      );
+    }
+
+
 
     // Define Preferred Bounty Items & custom payout rates
     const preferredBounties: Record<string, { percent: number; notes: string }> = {
@@ -280,6 +326,31 @@ function seedInitialData(db: Database.Database) {
         const preferredPercent = bounty ? bounty.percent : null;
         const bountyNotes = bounty ? bounty.notes : null;
 
+        let adaptedNotes = bountyNotes || (canBuy ? 'Imported from verified price registry' : '1c vendor trash - not purchased by runners');
+        if (name.startsWith('Corroded Bronze Chain')) {
+          adaptedNotes = 'T2 Chain Armor piece (Standard tier price: 1 silver 25 copper)';
+        } else if (name === 'Corroded Bronze Dagger') {
+          adaptedNotes = 'T2 Bronze Weapon (Standard tier price: 1 silver 25 copper)';
+        } else if (name === 'Corroded Bronze Scythe' || name === 'Corroded Bronze War Lance') {
+          adaptedNotes = 'T2 Bronze 2H Weapon (Standard tier price: 1 silver 50 copper)';
+        } else if (name === 'Corroded Bronze Kite Shield') {
+          adaptedNotes = 'T2 Bronze Shield (Standard tier price: 62 copper)';
+        } else if (name.startsWith('Tattered Cloth')) {
+          adaptedNotes = 'T1 Cloth Armor piece (Standard tier price: 25 copper)';
+        } else if (name.startsWith('Tattered Rawhide')) {
+          adaptedNotes = 'T1 Leather Armor piece (Standard tier price: 40 copper)';
+        } else if (name.startsWith('Rusty Battle Axe') || name.startsWith('Rusty Greatsword') || name.startsWith('Rusty Great Scythe') || name.startsWith('Rusty Maul') || name.startsWith('Rusty Long Spear')) {
+          adaptedNotes = 'T1 Rusty 2H Weapon (Standard tier price: 25 copper)';
+        } else if (name.startsWith('Rusty ') && (name.includes('Dagger') || name.includes('Axe') || name.includes('Shortsword') || name.includes('Longsword') || name.includes('Mace') || name.includes('Scimitar') || name.includes('Spear') || name.includes('Trident') || name.includes('Warhammer'))) {
+          adaptedNotes = 'T1 Rusty 1H Weapon (Standard tier price: 13 copper)';
+        } else if (name.startsWith('Rusty Kite Shield') || name.startsWith('Rusty Tower Shield') || name === 'Worn Buckler') {
+          adaptedNotes = 'T1 Rusty Shield (Standard tier price: 25 copper)';
+        } else if (name === 'Worn Bow' || name === 'Cracked Staff' || name === 'Worn Great Staff') {
+          adaptedNotes = 'T1 Worn Bow / Staff (Standard tier price: 50 copper)';
+        } else if (name === 'Worn Fine Wood Bow') {
+          adaptedNotes = 'T2 Fine Wood Bow (Standard tier price: 2 silver 50 copper)';
+        }
+
         const category = guessCategory(name);
         const stackSize = category.includes('Reagent') || category.includes('Food') || isBoneChips ? 20 : 1;
 
@@ -289,7 +360,7 @@ function seedInitialData(db: Database.Database) {
           category,
           finalPrice,
           stackSize,
-          canBuy ? (bountyNotes || 'Imported from verified price registry') : '1c vendor trash - not purchased by runners',
+          adaptedNotes,
           isPreferred,
           preferredPercent,
           bountyNotes,
@@ -319,6 +390,7 @@ export function getSettings(): AppSettings {
 
   return {
     guild_name: map.guild_name || 'The Pillar Men',
+    server_name: map.server_name || 'Tilustra (NA East 2)',
     hours_of_operation: map.hours_of_operation || 'Daily 6:00 PM - 2:00 AM EST (or whenever runners are on duty)',
     default_payout_percent: parseInt(map.default_payout_percent || '75', 10),
     motd: map.motd || '',
@@ -407,6 +479,10 @@ export function searchItems(query: string, limit = 50): Item[] {
   }
   const clean = `%${query.trim()}%`;
   return db.prepare('SELECT * FROM items WHERE name LIKE ? AND can_buy = 1 ORDER BY is_preferred DESC, name ASC LIMIT ?').all(clean, limit) as Item[];
+}
+
+export function getTierItems(): Item[] {
+  return db.prepare("SELECT * FROM items WHERE category = 'Tier Equipment' AND can_buy = 1 ORDER BY name ASC").all() as Item[];
 }
 
 export function getPreferredItems(): Item[] {

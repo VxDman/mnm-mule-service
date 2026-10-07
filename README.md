@@ -1,92 +1,69 @@
-# Monsters & Memories Mule & Camp Courier Service
+# The Pillar Men — Camp Mule & Courier Service
 
-A dedicated trade and courier web application tailored for *Monsters & Memories* guilds. It allows players camping deep in dungeons and wilderness zones to sell their loot on the spot without breaking camp, while guild runners travel to them, buy their heavy inventory at a fair quote, and vendor the items in town for profit.
+A dedicated trade and camp courier web application for the *Monsters & Memories* guild **The Pillar Men** on server **Tilustra (NA East 2)**. 
 
----
-
-## ✨ Key Features
-
-### 🛒 1. Customer Experience (Zero-Friction Order System)
-- **No Account Required**: Customers place orders with their in-game character name and receive a unique Order Code (e.g. `MM-7530`) and secure link.
-- **Location & /loc Coordinates**: Supports zone selection, camp descriptions, and exact in-game `/loc` coordinates.
-- **Instant Quotes & Unknown Item Submission**:
-  - Live item catalog search with autocomplete.
-  - Items in catalog immediately show instant coin quotes in **Platinum (pp)**, **Gold (gp)**, **Silver (sp)**, and **Copper (cp)**.
-  - Custom / unlisted items can be freely added; runners price them on review, and the prices are **automatically saved into the catalog for future customers**.
-- **Live Order Tracking (`/order/[id]`)**:
-  - 5-stage visual progress stepper: *Order Placed* → *Quote Ready* → *Runner Dispatched* → *Arrived at Camp* → *Trade Complete*.
-  - Real-time polling updates when runners claim, travel, and arrive.
-  - One-click **/tell [RunnerName]** whisper command copy button.
-  - Interactive camp chat and dispatch updates.
-
-### 🏃 2. Guild Runner Dashboard (`/dashboard`)
-- **Real-Time Incoming Queue**:
-  - Filter by *Needs Quote*, *Ready to Claim*, *My Active Runs*, and *History*.
-  - Audio Chime on new incoming orders (synthesized Web Audio, no external sound files required).
-- **Interactive Evaluation & Quoting**:
-  - Enter town vendor prices with coin inputs (PP, GP, SP, CP).
-  - Configurable auto-save to master catalog.
-- **Dispatch Controls**:
-  - Claim order and broadcast travel ETA (e.g., 2m, 5m, 10m).
-  - Mark *Arrived at Camp* to notify customer to initiate trade.
-  - Mark *Complete* to log successful transaction.
-- **Guild Profit Tracking**: Real-time treasury calculations showing runner margins and total guild earnings.
-
-### 📜 3. Master Price Catalog (`/items`)
-- Search, filter by category, add, edit, and delete items.
-- Pre-seeded with 35 classic Monsters & Memories items (pelts, weapons, gems, reagents, trophies).
-- Displays Vendor Sell Value, Customer Payout, and Runner Profit Margin side-by-side.
-
-### 🛡️ 4. Guild Administration (`/admin`)
-- **Guildmate Credential Management**:
-  - Create login accounts for runners with username, password, and in-game character name.
-  - Assign roles (`Runner` or `Admin`).
-  - One-click password reset.
-- **Guild Configuration**:
-  - Custom Guild Name & Tag (e.g., `[MULE] Ironforge Courier`).
-  - Adjustable Payout Percentage (slider from 50% to 95%, default: **75%**).
-  - Announcement banner (MOTD) displayed on the customer landing page.
+Players camping in dungeons or wilderness zones can sell full inventories on the spot without breaking camp, while guild couriers run out coins, collect items, and sell to town vendors for profit.
 
 ---
 
-## 🔑 Default Administrator Credentials
+## ✨ Core Features
 
-On first run, the system initializes with:
+### 🛒 Customer Ordering (Zero Login Required)
+- **Instant Camp Quotes**: Customers enter items or pick standard **Equipment Tiers (T1–T4)** or **Guild Wanted Bounties** (e.g. Bone Chips, Spider Silk) for instant coin quotes.
+- **Uncataloged Items**: Custom items can be submitted; runners quote them upon review, and prices are saved automatically for future orders.
+- **Camp Location & Landmarks**: Describe camp landmarks, spawns, or group position (e.g., *"at ZL with East Commonlands, lower gnoll pit"*).
+- **Live Order Tracking (`/order/[id]`)**: Real-time status updates, runner ETA, `/tell [Runner]` command copy button, and interactive camp dispatch log.
+
+### 🏃 Guild Runner Operations (`/dashboard`)
+- **Duty Toggle (`ON/OFF DUTY`)**: Service dynamically shows as OPEN when runners are on duty.
+- **Orders Queue**: Accept incoming requests, price unlisted items, announce travel ETAs, and mark arrival/completion.
+- **Audio Chime**: Web Audio sound alert on new incoming orders.
+- **Master Price Catalog (`/items`)**: Manage base prices, standard tiers, and bonus payout bounties.
+
+### 🛡️ Guild Administration (`/admin`)
+- **Runner Credentials**: Add guildmates, manage roles (`admin` / `runner`), reset passwords, and edit in-game character names.
+- **Service Configuration**: Update guild name, server realm, operational hours, default payout rate, and announcement banner (MOTD).
+
+---
+
+## 🔑 Default Administrator Login
+
+On first run, the admin account is seeded with:
 - **URL**: `/login`
 - **Username**: `admin`
 - **Password**: `ironmule2026`
+- **Runner In-Game Name**: `Ptah`
 
-*You can change this password or add other admins and runners inside the Admin Panel.*
+*Credentials and in-game names can be updated anytime in `/admin`.*
 
 ---
 
-## 🪙 Currency Denominations
+## 🪙 Currency System
 
-The currency system follows standard retro fantasy MMO conversions:
-- **1 Platinum (pp)** = 10 Gold = 1,000 Copper
+Uses classic fantasy MMO denominations:
+- **1 Platinum (pp)** = 10 Gold = 100 Silver = 1,000 Copper
 - **1 Gold (gp)** = 10 Silver = 100 Copper
 - **1 Silver (sp)** = 10 Copper
 - **1 Copper (cp)** = 1 Copper
 
-All values are stored with integer precision in copper units.
-
 ---
 
-## 🚀 Running the Service
+## 🚀 Getting Started
 
-### Development Mode:
 ```bash
-pnpm dev
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000).
 
-### Production Mode:
 ```bash
-pnpm build
-pnpm start -p 3000
-```
+# Production build
+npm run build
+npm start -- -p 3000
 
-### Running Automated Test Suite:
-```bash
+# Automated tests
 node tests/test-suite.mjs
 ```

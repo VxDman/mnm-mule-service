@@ -215,15 +215,43 @@ function seedInitialData(db: Database.Database) {
   // Remove old guild_tag setting if it existed
   db.prepare("DELETE FROM settings WHERE key = 'guild_tag'").run();
 
-  // 2. Seed Default Admin User if not already present
-  const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
+  // 2. Seed Default Admin User (Ptah)
+  const existingAdmin = db.prepare('SELECT id, display_name FROM users WHERE username = ?').get('admin') as { id: string; display_name: string } | undefined;
   if (!existingAdmin) {
     const salt = bcrypt.genSaltSync(10);
     const hash = bcrypt.hashSync('ironmule2026', salt);
     db.prepare(`
       INSERT OR IGNORE INTO users (id, username, password_hash, display_name, role, is_online)
       VALUES (?, ?, ?, ?, ?, 1)
-    `).run('user-admin-default', 'admin', hash, 'Santana (Quartermaster)', 'admin');
+    `).run('user-admin-default', 'admin', hash, 'Ptah', 'admin');
+  } else if (existingAdmin.display_name === 'Santana (Quartermaster)' || existingAdmin.display_name === 'Quartermaster Grimm') {
+    db.prepare('UPDATE users SET display_name = ? WHERE username = ?').run('Ptah', 'admin');
+  }
+
+  // Purge any individual equipment entries replaced by Tier Equipments
+  const replacedEquipment = [
+    'Cleaver', 'Cracked Staff', 'Rusty Axe', 'Rusty Battle Axe', 'Rusty Dagger',
+    'Rusty Great Scythe', 'Rusty Greatsword', 'Rusty Kite Shield', 'Rusty Long Spear',
+    'Rusty Longsword', 'Rusty Mace', 'Rusty Maul', 'Rusty Scimitar', 'Rusty Scythe',
+    'Rusty Shortsword', 'Rusty Spear', 'Rusty Tower Shield', 'Rusty Trident',
+    'Rusty War Lance', 'Rusty Warhammer', 'Worn Bow', 'Worn Buckler',
+    'Worn Fine Wood Bow', 'Worn Fine Wood Buckler', 'Worn Great Staff',
+    'Corroded Bronze Chain Gambeson', 'Corroded Bronze Chain Shoulderguards',
+    'Corroded Bronze Chain Wristguard', 'Corroded Bronze Dagger', 'Corroded Bronze Kite Shield',
+    'Corroded Bronze Scythe', 'Corroded Bronze War Lance', 'Spider Silk Cape',
+    'Tattered Cloth Belt', 'Tattered Cloth Boots', 'Tattered Cloth Bracer',
+    'Tattered Cloth Cap', 'Tattered Cloth Cape', 'Tattered Cloth Gloves',
+    'Tattered Cloth Gorget', 'Tattered Cloth Mantle', 'Tattered Cloth Robe',
+    'Tattered Cloth Tunic', 'Tattered Cloth Veil', 'Tattered Rawhide Belt',
+    'Tattered Rawhide Boots', 'Tattered Rawhide Bracer', 'Tattered Rawhide Cap',
+    'Tattered Rawhide Cloak', 'Tattered Rawhide Gloves', 'Tattered Rawhide Gorget',
+    'Tattered Rawhide Leggings', 'Tattered Rawhide Mask', 'Tattered Rawhide Shoulderpads',
+    'Tattered Rawhide Tunic', 'Tattered Rawhide Vest',
+    'Rusty Short Sword', 'Rusty Broad Sword', 'Rusty Two Handed Sword', 'Rusty Halberd',
+    'Bronze Longsword', 'Bronze Mace', 'Fine Steel Dagger', 'Fine Steel Scimitar', 'Fine Steel Two Handed Sword'
+  ];
+  for (const itName of replacedEquipment) {
+    db.prepare('DELETE FROM items WHERE name = ? COLLATE NOCASE').run(itName);
   }
 
   // 3. Import & Seed items from Google Sheet CSV (data/imported_prices.csv)
@@ -297,8 +325,7 @@ function seedInitialData(db: Database.Database) {
       'Fire Beetle Eye': { percent: 90, notes: '⭐ Light Source & Spell Reagent Bounty' },
       'Harvallen Root': { percent: 90, notes: '⭐ High-Value Foraged Root Bounty' },
       'Crocodile Hide': { percent: 85, notes: '⭐ Heavy Armor & Crafting Leather Bounty' },
-      'Ashira Warrior Pelt': { percent: 85, notes: '⭐ Trophy & Tailoring Bounty' },
-      'Cracked Staff': { percent: 80, notes: '⭐ High-Vendor Value Caster Weapon Bounty' }
+      'Ashira Warrior Pelt': { percent: 85, notes: '⭐ Trophy & Tailoring Bounty' }
     };
 
     const transaction = db.transaction(() => {
@@ -327,29 +354,7 @@ function seedInitialData(db: Database.Database) {
         const bountyNotes = bounty ? bounty.notes : null;
 
         let adaptedNotes = bountyNotes || (canBuy ? 'Imported from verified price registry' : '1c vendor trash - not purchased by runners');
-        if (name.startsWith('Corroded Bronze Chain')) {
-          adaptedNotes = 'T2 Chain Armor piece (Standard tier price: 1 silver 25 copper)';
-        } else if (name === 'Corroded Bronze Dagger') {
-          adaptedNotes = 'T2 Bronze Weapon (Standard tier price: 1 silver 25 copper)';
-        } else if (name === 'Corroded Bronze Scythe' || name === 'Corroded Bronze War Lance') {
-          adaptedNotes = 'T2 Bronze 2H Weapon (Standard tier price: 1 silver 50 copper)';
-        } else if (name === 'Corroded Bronze Kite Shield') {
-          adaptedNotes = 'T2 Bronze Shield (Standard tier price: 62 copper)';
-        } else if (name.startsWith('Tattered Cloth')) {
-          adaptedNotes = 'T1 Cloth Armor piece (Standard tier price: 25 copper)';
-        } else if (name.startsWith('Tattered Rawhide')) {
-          adaptedNotes = 'T1 Leather Armor piece (Standard tier price: 40 copper)';
-        } else if (name.startsWith('Rusty Battle Axe') || name.startsWith('Rusty Greatsword') || name.startsWith('Rusty Great Scythe') || name.startsWith('Rusty Maul') || name.startsWith('Rusty Long Spear')) {
-          adaptedNotes = 'T1 Rusty 2H Weapon (Standard tier price: 25 copper)';
-        } else if (name.startsWith('Rusty ') && (name.includes('Dagger') || name.includes('Axe') || name.includes('Shortsword') || name.includes('Longsword') || name.includes('Mace') || name.includes('Scimitar') || name.includes('Spear') || name.includes('Trident') || name.includes('Warhammer'))) {
-          adaptedNotes = 'T1 Rusty 1H Weapon (Standard tier price: 13 copper)';
-        } else if (name.startsWith('Rusty Kite Shield') || name.startsWith('Rusty Tower Shield') || name === 'Worn Buckler') {
-          adaptedNotes = 'T1 Rusty Shield (Standard tier price: 25 copper)';
-        } else if (name === 'Worn Bow' || name === 'Cracked Staff' || name === 'Worn Great Staff') {
-          adaptedNotes = 'T1 Worn Bow / Staff (Standard tier price: 50 copper)';
-        } else if (name === 'Worn Fine Wood Bow') {
-          adaptedNotes = 'T2 Fine Wood Bow (Standard tier price: 2 silver 50 copper)';
-        }
+
 
         const category = guessCategory(name);
         const stackSize = category.includes('Reagent') || category.includes('Food') || isBoneChips ? 20 : 1;

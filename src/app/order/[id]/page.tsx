@@ -433,7 +433,7 @@ function OrderContent({ orderId }: { orderId: string }) {
                   Itemized Quote Receipt
                 </h3>
                 <span className="text-xs font-mono text-zinc-400">
-                  Base Payout Rate: <span className="text-amber-400 font-bold">{order.payout_percent}%</span>
+                  Order Ref: <span className="text-amber-400 font-bold">{order.id}</span>
                 </span>
               </div>
 
@@ -481,7 +481,7 @@ function OrderContent({ orderId }: { orderId: string }) {
 
                 <div className="p-4 bg-zinc-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-zinc-800">
                   <div className="text-xs text-zinc-400">
-                    <div>Gross Vendor Value: <CoinDisplay copper={order.total_vendor_copper} compact size="sm" /></div>
+                    <span className="text-zinc-400 font-medium">Delivered directly to your group at camp</span>
                   </div>
 
                   <div className="flex items-center gap-3">

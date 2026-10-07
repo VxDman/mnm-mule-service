@@ -111,31 +111,31 @@ export function Navbar() {
     <>
       <header className="sticky top-0 z-50 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 text-zinc-100 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-16 gap-3">
             {/* Logo and Brand */}
-            <div className="flex items-center gap-4">
-              <Link href="/" className="flex items-center gap-2.5 group">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-amber-900 flex items-center justify-center border border-amber-500/40 shadow-inner group-hover:scale-105 transition-transform">
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0 min-w-0">
+              <Link href="/" className="flex items-center gap-2.5 group shrink-0 whitespace-nowrap">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-amber-900 flex items-center justify-center border border-amber-500/40 shadow-inner group-hover:scale-105 transition-transform shrink-0">
                   <Coins className="w-5 h-5 text-amber-200" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 font-black tracking-tight text-white group-hover:text-amber-300 transition-colors">
-                    <span className="text-base">{guildName}</span>
+                <div className="shrink-0 whitespace-nowrap">
+                  <div className="flex items-center gap-2 font-black tracking-tight text-white group-hover:text-amber-300 transition-colors whitespace-nowrap leading-tight">
+                    <span className="text-base whitespace-nowrap">{guildName}</span>
                   </div>
-                  <p className="text-[11px] text-zinc-400 font-medium">Camp Trade & Courier Service</p>
+                  <p className="text-[11px] text-zinc-400 font-medium whitespace-nowrap leading-tight">Camp Trade &amp; Courier Service</p>
                 </div>
               </Link>
 
               {/* Server Name Prominent Badge */}
-              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-950/70 border border-blue-500/40 text-blue-300 shadow-sm">
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-950/70 border border-blue-500/40 text-blue-300 shadow-sm shrink-0 whitespace-nowrap">
                 <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span>Server: {serverName}</span>
+                <span className="whitespace-nowrap">Server: {serverName}</span>
               </div>
 
               {/* Service Open/Closed Live Indicator */}
-              <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-zinc-800 text-xs">
+              <div className="hidden md:flex items-center gap-2 pl-2 border-l border-zinc-800 text-xs shrink-0 whitespace-nowrap">
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border shrink-0 whitespace-nowrap ${
                     isOpen
                       ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
                       : 'bg-zinc-900 border-zinc-700 text-zinc-400'
@@ -143,19 +143,19 @@ export function Navbar() {
                   title={settings?.hours_of_operation}
                 >
                   <span
-                    className={`w-2 h-2 rounded-full ${
+                    className={`w-2 h-2 rounded-full shrink-0 ${
                       isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'
                     }`}
                   />
-                  <span>{isOpen ? `Service Open (${onlineRunnersCount} runner${onlineRunnersCount === 1 ? '' : 's'})` : 'Closed / Off Duty'}</span>
+                  <span className="whitespace-nowrap">{isOpen ? `Service Open (${onlineRunnersCount} runner${onlineRunnersCount === 1 ? '' : 's'})` : 'Closed / Off Duty'}</span>
                 </span>
               </div>
 
               {/* Main Nav Links */}
-              <nav className="hidden md:flex items-center gap-1 ml-2 text-sm">
+              <nav className="hidden lg:flex items-center gap-1 ml-1 xl:ml-2 text-xs xl:text-sm shrink-0">
                 <Link
                   href="/"
-                  className={`px-3 py-1.5 rounded-md transition-colors ${
+                  className={`px-2.5 xl:px-3 py-1.5 rounded-md transition-colors whitespace-nowrap ${
                     pathname === '/'
                       ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30'
                       : 'text-zinc-300 hover:text-white hover:bg-zinc-800/60'
@@ -166,50 +166,50 @@ export function Navbar() {
 
                 <button
                   onClick={() => setShowTrackModal(true)}
-                  className="px-3 py-1.5 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors flex items-center gap-1.5"
+                  className="px-2.5 xl:px-3 py-1.5 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors flex items-center gap-1.5 whitespace-nowrap"
                 >
-                  <Search className="w-3.5 h-3.5 text-zinc-400" />
-                  Track Order
+                  <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                  <span>Track Order</span>
                 </button>
 
                 {user && (
                   <>
-                    <div className="h-4 w-px bg-zinc-800 mx-2" />
+                    <div className="h-4 w-px bg-zinc-800 mx-1.5" />
                     <Link
                       href="/dashboard"
-                      className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+                      className={`px-2.5 xl:px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                         pathname === '/dashboard'
                           ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30'
                           : 'text-zinc-300 hover:text-white hover:bg-zinc-800/60'
                       }`}
                     >
-                      <Package className="w-4 h-4 text-amber-400" />
-                      Orders Queue
+                      <Package className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Orders Queue</span>
                     </Link>
 
                     <Link
                       href="/items"
-                      className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+                      className={`px-2.5 xl:px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                         pathname === '/items'
                           ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30'
                           : 'text-zinc-300 hover:text-white hover:bg-zinc-800/60'
                       }`}
                     >
-                      <Layers className="w-4 h-4 text-cyan-400" />
-                      Prices & Bounties
+                      <Layers className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <span>Prices &amp; Bounties</span>
                     </Link>
 
                     {user.role === 'admin' && (
                       <Link
                         href="/admin"
-                        className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+                        className={`px-2.5 xl:px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                           pathname === '/admin'
                             ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30'
                             : 'text-zinc-300 hover:text-white hover:bg-zinc-800/60'
                         }`}
                       >
-                        <Shield className="w-4 h-4 text-purple-400" />
-                        Guild Admin
+                        <Shield className="w-4 h-4 text-purple-400 shrink-0" />
+                        <span>Guild Admin</span>
                       </Link>
                     )}
                   </>
@@ -218,22 +218,22 @@ export function Navbar() {
             </div>
 
             {/* Right Side: Runner Duty Switch & Sound & Auth */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               {/* Runner Duty Status Switch */}
               {user && (
                 <button
                   type="button"
                   onClick={handleToggleDuty}
                   disabled={isDutyLoading}
-                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm shrink-0 ${
                     user.is_online
                       ? 'bg-emerald-600 hover:bg-emerald-500 text-zinc-950 border-emerald-400 animate-pulse'
                       : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-zinc-700'
                   }`}
                   title="Click to toggle your active courier duty status and open/close service"
                 >
-                  <Radio className="w-3.5 h-3.5" />
-                  <span>{user.is_online ? 'ON DUTY' : 'OFF DUTY'}</span>
+                  <Radio className="w-3.5 h-3.5 shrink-0" />
+                  <span className="whitespace-nowrap">{user.is_online ? 'ON DUTY' : 'OFF DUTY'}</span>
                 </button>
               )}
 
@@ -242,27 +242,27 @@ export function Navbar() {
                   type="button"
                   onClick={toggleSound}
                   title={soundEnabled ? 'Order Audio Chime Enabled' : 'Order Audio Chime Muted'}
-                  className={`p-2 rounded-md border text-xs transition-colors flex items-center gap-1.5 ${
+                  className={`p-2 rounded-md border text-xs transition-colors flex items-center gap-1.5 shrink-0 ${
                     soundEnabled
                       ? 'bg-emerald-950/40 border-emerald-600/40 text-emerald-300 hover:bg-emerald-950/60'
                       : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:bg-zinc-800'
                   }`}
                 >
-                  {soundEnabled ? <Bell className="w-4 h-4 text-emerald-400" /> : <BellOff className="w-4 h-4" />}
-                  <span className="hidden xl:inline text-[11px]">{soundEnabled ? 'Chime ON' : 'Chime OFF'}</span>
+                  {soundEnabled ? <Bell className="w-4 h-4 text-emerald-400 shrink-0" /> : <BellOff className="w-4 h-4 shrink-0" />}
+                  <span className="hidden xl:inline text-[11px] whitespace-nowrap">{soundEnabled ? 'Chime ON' : 'Chime OFF'}</span>
                 </button>
               )}
 
               {user ? (
-                <div className="flex items-center gap-3">
-                  <div className="hidden sm:flex flex-col text-right">
-                    <span className="text-xs font-bold text-white">{user.display_name}</span>
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                  <div className="hidden sm:flex flex-col text-right shrink-0 whitespace-nowrap">
+                    <span className="text-xs font-bold text-white whitespace-nowrap">{user.display_name}</span>
                     <span className="text-[10px] text-zinc-400 capitalize">{user.role}</span>
                   </div>
                   <button
                     onClick={handleLogout}
                     title="Log Out"
-                    className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                    className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors shrink-0"
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
@@ -270,10 +270,10 @@ export function Navbar() {
               ) : (
                 <Link
                   href="/login"
-                  className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-medium text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-medium text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                 >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Guild Login</span>
+                  <LogIn className="w-3.5 h-3.5 shrink-0" />
+                  <span className="whitespace-nowrap">Guild Login</span>
                 </Link>
               )}
             </div>

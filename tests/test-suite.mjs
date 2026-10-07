@@ -27,7 +27,7 @@ async function runTests() {
   assert(settingsData.settings.server_name === "Tilustra (NA East 2)", `Server is Tilustra (NA East 2) (got: ${settingsData.settings.server_name})`);
 
   // Check Standard Equipment Tiers
-  console.log("\n1b. Verifying Standard Equipment Tiers (T1, T2, T3)...");
+  console.log("\n1b. Verifying Standard Equipment Tiers (T1, T2, T3, T4)...");
   const tierRes = await fetch(`${BASE_URL}/api/items?tier=true`);
   const tierData = await tierRes.json();
   assert(tierRes.ok, "Tier items endpoint returns 200 OK");
@@ -37,13 +37,18 @@ async function runTests() {
   const t1Rusty = tierData.items.find((i) => i.name === "T1 Rusty 1H Weapon");
   assert(t1Rusty && t1Rusty.vendor_price_copper === 13, `T1 Rusty 1H Weapon standard price is 13 copper (got: ${t1Rusty?.vendor_price_copper})`);
 
-
-  // 2. Check Google Sheet Ingestion & Price Logic
-  console.log('\n2. Verifying Google Sheet Item Pricing & 1c Filtering...');
+  // 2. Check Google Sheet Ingestion & Price Logic & Replaced Items Removal
+  console.log('\n2. Verifying Google Sheet Item Pricing, 1c Filtering & Purge of Replaced Items...');
   const itemsRes = await fetch(`${BASE_URL}/api/items?limit=500`);
   const itemsData = await itemsRes.json();
   assert(itemsRes.ok, 'Items endpoint returns 200 OK');
-  assert(itemsData.items.length >= 100, `Imported full sheet catalog (found ${itemsData.items.length} items)`);
+  assert(itemsData.items.length >= 80, `Imported catalog returned (found ${itemsData.items.length} items)`);
+
+  // Verify that replaced individual equipment items are deleted
+  assert(!itemsData.items.some((i) => i.name === 'Rusty Dagger'), 'Replaced item "Rusty Dagger" removed');
+  assert(!itemsData.items.some((i) => i.name === 'Tattered Cloth Robe'), 'Replaced item "Tattered Cloth Robe" removed');
+  assert(!itemsData.items.some((i) => i.name === 'Corroded Bronze Chain Gambeson'), 'Replaced item "Corroded Bronze Chain Gambeson" removed');
+  assert(!itemsData.items.some((i) => i.name === 'Worn Bow'), 'Replaced item "Worn Bow" removed');
 
   // Check Bat Tooth (Earlier 1c, Higher 5c -> logic: highest price = 5c)
   const batTooth = itemsData.items.find((i) => i.name === 'Bat Tooth');
@@ -71,8 +76,8 @@ async function runTests() {
   const spiderSilk = prefData.items.find((i) => i.name === 'Spider Silk');
   assert(spiderSilk && spiderSilk.preferred_payout_percent === 90, `Spider Silk has 90% bonus payout rate`);
 
-  // 4. Admin Login
-  console.log('\n4. Logging in as Admin...');
+  // 4. Admin Login & Check In-Game Name "Ptah"
+  console.log('\n4. Logging in as Admin & Checking In-Game Name...');
   const adminLoginRes = await fetch(`${BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -85,6 +90,7 @@ async function runTests() {
   const adminLoginData = await adminLoginRes.json();
   assert(adminLoginRes.ok, 'Admin login succeeded');
   assert(adminLoginData.user.role === 'admin', 'Admin user authenticated');
+  assert(adminLoginData.user.display_name === 'Ptah', `Admin runner in-game name is "Ptah" (got: ${adminLoginData.user.display_name})`);
 
   // 5. Admin creates Runner account "kars"
   console.log('\n5. Admin Issuing Credentials to Guild Runner "kars"...');
@@ -117,7 +123,7 @@ async function runTests() {
     })
   });
   const runnerCookie = runnerLoginRes.headers.get('set-cookie');
-  assert(runnerLoginRes.ok, 'Runner kars_runner logged in');
+  assert(runnerLoginRes.ok, 'Runner logged in');
 
   // 7. Runner Toggles Duty Status ON (Opening the service!)
   console.log('\n7. Runner Declaring Duty Status ON (Opening Service)...');
@@ -142,7 +148,7 @@ async function runTests() {
     body: JSON.stringify({
       customer_name: 'Joseph',
       zone: 'Blackburrow',
-      camp_location: 'Lower gnoll waterfall ledge behind wooden support beams',
+      camp_location: 'at ZL with Everfrost Peaks, lower gnoll waterfall ledge',
       customer_notes: 'Group pulling continuously, safe to approach from south tunnel',
       items: [
         { item_name: 'Bone Chips', quantity: 20 },
@@ -154,7 +160,7 @@ async function runTests() {
   const newOrderData = await newOrderRes.json();
   assert(newOrderRes.ok, 'Customer order placed successfully');
   assert(newOrderData.order.id.startsWith('MM-'), `Order ID generated: ${newOrderData.order.id}`);
-  assert(newOrderData.order.camp_location === 'Lower gnoll waterfall ledge behind wooden support beams', 'Camp location & landmarks recorded');
+  assert(newOrderData.order.camp_location.includes('at ZL with'), 'Camp location with ZL recorded');
   const orderId = newOrderData.order.id;
 
   // 9. Customer trying to order unbuyable 1c item gets error

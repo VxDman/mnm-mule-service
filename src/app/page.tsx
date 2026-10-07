@@ -359,7 +359,7 @@ export default function OrderPage() {
               <div className="w-8 h-8 rounded-lg bg-amber-950/60 border border-amber-500/30 flex items-center justify-center mb-2.5">
                 <Coins className="w-4 h-4 text-amber-400" />
               </div>
-              <h4 className="text-xs font-bold text-white mb-1">{settings.default_payout_percent}% Base Payout</h4>
+              <h4 className="text-xs font-bold text-white mb-1">Instant Camp Cash</h4>
               <p className="text-[11px] text-zinc-400">Receive fair coin value instantly on the spot without running back to town.</p>
             </div>
 
@@ -375,8 +375,8 @@ export default function OrderPage() {
               <div className="w-8 h-8 rounded-lg bg-purple-950/60 border border-purple-500/30 flex items-center justify-center mb-2.5">
                 <Star className="w-4 h-4 text-purple-400" />
               </div>
-              <h4 className="text-xs font-bold text-white mb-1">Bounties & Tiers</h4>
-              <p className="text-[11px] text-zinc-400">Fast grouped tier entries (T2 Chain, T3 Bronze) and premium rates for Bone Chips & silk!</p>
+              <h4 className="text-xs font-bold text-white mb-1">Bounties &amp; Tiers</h4>
+              <p className="text-[11px] text-zinc-400">Fast grouped tier entries (T2 Chain, T3 Bronze) and premium rates for Bone Chips &amp; silk!</p>
             </div>
           </div>
         </div>
@@ -454,7 +454,7 @@ export default function OrderPage() {
                     </div>
                     <div className="mt-1 flex items-center justify-between text-[11px]">
                       <span className="text-zinc-400 font-mono">
-                        <CoinDisplay copper={tier.vendor_price_copper} compact size="sm" />
+                        <CoinDisplay copper={payout} compact size="sm" />
                       </span>
                       <span className="text-blue-300 font-bold text-[10px] bg-blue-950/80 px-1 py-0.5 rounded border border-blue-700/50">
                         + Add
@@ -474,16 +474,16 @@ export default function OrderPage() {
               <div className="flex items-center gap-2">
                 <Star className="w-5 h-5 text-amber-400 fill-amber-400/20" />
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  ⭐ Guild Wanted Bounties — Higher Payout!
+                  ⭐ Guild Wanted Bounties — Bonus Cash Offers
                 </h3>
               </div>
               <span className="text-[11px] text-amber-300 font-mono font-semibold">
-                Premium Rates
+                High Demand
               </span>
             </div>
 
             <p className="text-xs text-zinc-400 mb-3">
-              We pay bonus coin rates for these high-demand items (e.g. Bone Chips are bought even at 1c!). Click to add to your order:
+              We pay premium coin quotes for these high-demand items (e.g. Bone Chips are bought even at 1c!). Click to add to your order:
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
@@ -500,10 +500,10 @@ export default function OrderPage() {
                     className="p-2.5 rounded-xl bg-zinc-950/80 border border-amber-800/40 hover:border-amber-500 hover:bg-zinc-900 text-left transition-all flex items-center justify-between group shadow-sm"
                   >
                     <div>
-                      <div className="text-xs font-bold text-white group-hover:text-amber-300 flex items-center gap-1">
+                      <div className="text-xs font-bold text-white group-hover:text-amber-300 flex items-center gap-1.5">
                         <span>{bounty.name}</span>
-                        <span className="text-[10px] px-1 py-0.2 rounded bg-amber-950 text-amber-400 font-mono">
-                          {bounty.preferred_payout_percent || settings.default_payout_percent}%
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950 border border-amber-700/50 text-amber-300 font-semibold">
+                          Guild Bounty
                         </span>
                       </div>
                       <div className="text-[10px] text-zinc-500 truncate max-w-[170px]">
@@ -523,38 +523,33 @@ export default function OrderPage() {
         )}
 
         {errorMsg && (
-          <div className="bg-rose-950/60 border border-rose-800/80 text-rose-200 rounded-xl p-4 text-sm flex items-center gap-3">
+          <div className="bg-rose-950/80 border border-rose-800 text-rose-200 text-xs sm:text-sm p-4 rounded-xl flex items-center gap-3">
             <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmitOrder} className="space-y-8">
+        <form onSubmit={handleSubmitOrder} className="space-y-6">
           {/* Section 1: Customer & Camp Location */}
-          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
-                  1
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Your Character & Camp Location</h2>
-                  <p className="text-xs text-zinc-400">Where should our courier meet you for the trade?</p>
-                </div>
+          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-5">
+            <div className="flex items-center gap-3 border-b border-zinc-800 pb-4">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
+                1
               </div>
-
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-blue-950/70 border border-blue-600/40 rounded-lg text-xs font-bold text-blue-300">
-                <Globe className="w-3.5 h-3.5 text-blue-400" />
-                <span>{serverName}</span>
+              <div>
+                <h2 className="text-lg font-bold text-white">Character &amp; Camp Coordinates</h2>
+                <p className="text-xs text-zinc-400">
+                  Where should our runner meet you in Monsters &amp; Memories?
+                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Character Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {/* Customer In-Game Name */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-amber-400" />
-                  In-Game Character Name <span className="text-rose-400">*</span>
+                  Your In-Game Character Name <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -564,7 +559,7 @@ export default function OrderPage() {
                   onChange={(e) => setCustomerName(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
-                <span className="text-[11px] text-zinc-500 mt-1 block">Your character name in Monsters & Memories ({serverName})</span>
+                <span className="text-[11px] text-zinc-500 mt-1 block">Your character name in Monsters &amp; Memories ({serverName})</span>
               </div>
 
               {/* Zone */}
@@ -597,18 +592,18 @@ export default function OrderPage() {
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                Camp Location & Landmarks <span className="text-rose-400">*</span>
+                Camp Location &amp; Landmarks <span className="text-rose-400">*</span>
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Lower gnoll pit, behind wooden bridge, near campfire"
+                placeholder="e.g. at ZL with East Commonlands, lower gnoll pit, behind wooden bridge..."
                 value={campLocation}
                 onChange={(e) => setCampLocation(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
               <span className="text-[11px] text-zinc-500 mt-1 block">
-                Describe landmarks, nearby monster spawns, or group position so our runner can navigate directly to you.
+                Describe landmarks, nearby monster spawns, group position, or &quot;at ZL with [other zone name]&quot; (Zone Line) so our runner can navigate directly to you.
               </span>
             </div>
 
@@ -644,7 +639,7 @@ export default function OrderPage() {
 
               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-zinc-800/80 border border-zinc-700 rounded-lg text-xs font-mono text-amber-300">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Base Payout: {settings.default_payout_percent}%</span>
+                <span>Instant Camp Quotes</span>
               </div>
             </div>
 
@@ -693,7 +688,7 @@ export default function OrderPage() {
                           {isPreferred && (
                             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-400 flex items-center gap-1 text-[11px] font-bold">
                               <Star className="w-3.5 h-3.5 fill-amber-400" />
-                              <span className="hidden sm:inline">Bounty ({effectiveRate}%)</span>
+                              <span className="hidden sm:inline">Guild Bounty</span>
                             </span>
                           )}
                         </div>
@@ -740,7 +735,7 @@ export default function OrderPage() {
                                   </div>
                                   <div className="text-right">
                                     <div className="text-[10px] text-zinc-400">
-                                      Payout ({itemRate}%):
+                                      Quote Offer:
                                     </div>
                                     <CoinDisplay copper={calculatedPayout} size="sm" />
                                   </div>
@@ -750,7 +745,7 @@ export default function OrderPage() {
 
                             {filteredCatalog.length === 0 && row.item_name.trim().length > 0 && (
                               <div className="px-3.5 py-3 text-xs text-zinc-400 bg-zinc-900/90">
-                                <span className="font-semibold text-amber-300">"{row.item_name}"</span> is not yet in our database.
+                                <span className="font-semibold text-amber-300">&quot;{row.item_name}&quot;</span> is not yet in our database.
                                 <p className="text-[11px] text-zinc-500 mt-0.5">
                                   Submit it anyway! Our runner will quote the price when they receive your order, and it will be saved for next time.
                                 </p>
@@ -761,19 +756,19 @@ export default function OrderPage() {
                               <button
                                 type="button"
                                 onClick={() => setActiveSearchIndex(null)}
-                                className="text-[11px] text-zinc-400 hover:text-zinc-200 font-medium"
+                                className="text-[10px] text-zinc-500 hover:text-zinc-300"
                               >
-                                Close Suggestions
+                                Close suggestions ✕
                               </button>
                             </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Quantity */}
-                      <div className="w-24 shrink-0">
-                        <label className="sm:hidden block text-[10px] text-zinc-400 mb-0.5">Quantity</label>
-                        <div className="flex items-center">
+                      {/* Quantity Input */}
+                      <div className="w-full sm:w-28 flex items-center gap-2">
+                        <label className="sm:hidden text-xs text-zinc-400">Qty:</label>
+                        <div className="relative flex-1">
                           <input
                             type="number"
                             min="1"
@@ -790,7 +785,7 @@ export default function OrderPage() {
                       <div className="min-w-[130px] flex items-center justify-between sm:justify-end gap-2 text-right">
                         {isCataloged ? (
                           <div className="flex flex-col items-end">
-                            <span className="text-[10px] text-zinc-400">Total Payout:</span>
+                            <span className="text-[10px] text-zinc-400">Total Offer:</span>
                             <CoinDisplay copper={subtotalPayout} size="sm" />
                           </div>
                         ) : (
@@ -864,8 +859,14 @@ export default function OrderPage() {
                 disabled={isSubmitting}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-sm tracking-wide shadow-lg shadow-amber-500/20 disabled:opacity-50 transition-all cursor-pointer"
               >
-                <span>{isSubmitting ? 'Dispatching...' : 'Dispatch The Pillar Men Courier'}</span>
-                <ArrowRight className="w-4 h-4" />
+                {isSubmitting ? (
+                  <span>Summoning Courier...</span>
+                ) : (
+                  <>
+                    <span>Request Camp Courier</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </div>
           </div>

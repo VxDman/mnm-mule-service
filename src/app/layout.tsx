@@ -29,7 +29,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100 font-sans selection:bg-amber-500/30 selection:text-amber-200">
+      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100 font-sans selection:bg-amber-500/30 selection:text-amber-200 overflow-x-hidden">
         <Suspense fallback={<div className="h-16 bg-zinc-950 border-b border-zinc-800" />}>
           <Navbar />
         </Suspense>
@@ -38,7 +38,7 @@ export default function RootLayout({
         </div>
         <footer className="border-t border-zinc-900 bg-zinc-950/80 py-6 text-center text-xs text-zinc-500">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span>© 2026 The Pillar Men • Monsters & Memories Camp Courier Service</span>
+            <span>© 2026 The Pillar Men • Monsters &amp; Memories Camp Courier Service</span>
             <span className="text-[11px] text-zinc-600">Platinum (pp) • Gold (gp) • Silver (sp) • Copper (cp)</span>
           </div>
         </footer>

@@ -33,7 +33,7 @@ async function runTests() {
   assert(tierRes.ok, "Tier items endpoint returns 200 OK");
   assert(tierData.items.length >= 10, `Tier items returned (found ${tierData.items.length})`);
   const t2Chain = tierData.items.find((i) => i.name === "T2 Chain Armor");
-  assert(t2Chain && t2Chain.vendor_price_copper === 35, `T2 Chain Armor standard price is 35 copper (1sp 25c, got: ${t2Chain?.vendor_price_copper})`);
+  assert(t2Chain && t2Chain.vendor_price_copper === 125, `T2 Chain Armor standard price is 125 copper (1sp 25c, got: ${t2Chain?.vendor_price_copper})`);
   const t1Rusty = tierData.items.find((i) => i.name === "T1 Rusty 1H Weapon");
   assert(t1Rusty && t1Rusty.vendor_price_copper === 13, `T1 Rusty 1H Weapon standard price is 13 copper (got: ${t1Rusty?.vendor_price_copper})`);
 
@@ -54,9 +54,9 @@ async function runTests() {
   const batTooth = itemsData.items.find((i) => i.name === 'Bat Tooth');
   assert(batTooth && batTooth.vendor_price_copper === 5, `Bat Tooth uses highest observed price (5 copper, got: ${batTooth?.vendor_price_copper})`);
 
-  // Check Harvallen Root (2 silver 25 copper = 2*10 + 25 = 45 copper)
+  // Check Harvallen Root (2 silver 25 copper = 2*100 + 25 = 225 copper)
   const root = itemsData.items.find((i) => i.name === 'Harvallen Root');
-  assert(root && root.vendor_price_copper === 45, `Harvallen Root parsed correctly (45 copper, got: ${root?.vendor_price_copper})`);
+  assert(root && root.vendor_price_copper === 225, `Harvallen Root parsed correctly (225 copper, got: ${root?.vendor_price_copper})`);
 
   // Check 1c item filter: Butter (1c item) should have can_buy = 0
   const butter = itemsData.items.find((i) => i.name === 'Butter');

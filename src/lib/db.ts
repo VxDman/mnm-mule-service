@@ -152,13 +152,13 @@ export function parsePriceToCopper(str: string): number {
   let total = 0;
 
   const ppMatch = s.match(/(\d+)\s*(?:plat|platinum|pp)/);
-  if (ppMatch) total += parseInt(ppMatch[1], 10) * 1000;
+  if (ppMatch) total += parseInt(ppMatch[1], 10) * 1000000;
 
   const gpMatch = s.match(/(\d+)\s*(?:gold|gp)/);
-  if (gpMatch) total += parseInt(gpMatch[1], 10) * 100;
+  if (gpMatch) total += parseInt(gpMatch[1], 10) * 10000;
 
   const spMatch = s.match(/(\d+)\s*(?:silver|sp)/);
-  if (spMatch) total += parseInt(spMatch[1], 10) * 10;
+  if (spMatch) total += parseInt(spMatch[1], 10) * 100;
 
   const cpMatch = s.match(/(\d+)\s*(?:copper|cp)/);
   if (cpMatch) total += parseInt(cpMatch[1], 10);
@@ -296,7 +296,7 @@ function seedInitialData(db: Database.Database) {
       { name: 'T3 Iron Shield', category: 'Tier Equipment', price: 200, notes: 'Standard T3 Iron Shield' },
       { name: 'T3 Iron Plate Armor', category: 'Tier Equipment', price: 500, notes: 'Standard T3 Iron Plate piece' },
       { name: 'T4 Steel Weapon', category: 'Tier Equipment', price: 800, notes: 'Standard T4 Fine Steel Weapon' },
-      { name: 'T4 Plate / Chain Armor', category: 'Tier Equipment', price: 1000, notes: 'Standard T4 Fine Plate or Chain piece (1 plat)' },
+      { name: 'T4 Plate / Chain Armor', category: 'Tier Equipment', price: 1000, notes: 'Standard T4 Fine Plate or Chain piece (10 silver)' },
     ];
 
     for (const tItem of standardTierItems) {

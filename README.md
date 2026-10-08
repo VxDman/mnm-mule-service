@@ -40,10 +40,10 @@ On first run, the admin account is seeded with:
 
 ## 🪙 Currency System
 
-Uses classic fantasy MMO denominations:
-- **1 Platinum (pp)** = 10 Gold = 100 Silver = 1,000 Copper
-- **1 Gold (gp)** = 10 Silver = 100 Copper
-- **1 Silver (sp)** = 10 Copper
+Uses *Monsters & Memories* 100:1 coin denominations:
+- **1 Platinum (pp)** = 100 Gold = 10,000 Silver = 1,000,000 Copper
+- **1 Gold (gp)** = 100 Silver = 10,000 Copper
+- **1 Silver (sp)** = 100 Copper
 - **1 Copper (cp)** = 1 Copper
 
 ---
